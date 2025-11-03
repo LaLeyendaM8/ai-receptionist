@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "next": "^16.0.1",
+    "twilio": "^5.10.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0"
+  }
+}
