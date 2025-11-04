@@ -1,15 +1,10 @@
-// backend/api/call/recording-status.ts
-// Optional status callback for recording life-cycle events.
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
+import { NextResponse, type NextRequest } from 'next/server';
 
-import type { NextApiRequest, NextApiResponse } from 'next'
-
-
-export async function statusHandler(req: NextApiRequest, res: NextApiResponse) {
-if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-console.log('[Twilio Recording Status]', req.body)
-return res.status(200).json({ ok: true })
+export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  console.log('[Twilio Recording Status]', Object.fromEntries(form.entries()));
+  return NextResponse.json({ ok: true });
 }
-
-
-export default statusHandler
