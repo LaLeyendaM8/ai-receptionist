@@ -4,9 +4,9 @@ import { createClients } from '@/lib/supabaseClients'
 export async function GET() {
   const supabase = createClients()
   const { data, error } = await supabase
-    .from('clients')
-    .select('*')
-    .order('created_at', { ascending: false })
+    .from('calls')
+    .select('*, clients(name, phone)')
+    .order('started_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })
@@ -15,14 +15,16 @@ export async function GET() {
 export async function POST(req: Request) {
   const supabase = createClients()
   const body = await req.json()
-  // { name, industry?, phone?, email?, address?, timezone?, active? }
-  const { data: u } = await (supabase as any).auth.getUser?.()
-  const sessionUserId = u?.user?.id
+  // erlaubt: { client_id?, direction?, from_number?, to_number?, language?, outcome?, booking_id?, transcript?, meta? }
+  const payload = {
+    direction: 'inbound',
+    language: 'de',
+    status: undefined, // nicht vorhanden in deiner calls Tabelle
+    meta: {},
+    ...body,
+  }
 
-  const owner_user = sessionUserId ?? process.env.DEV_USER_ID // nur DEV!
-  const payload = { ...body, owner_user }
-  const { data, error } = await supabase.from('clients').insert(payload).select().single()
-
+  const { data, error } = await supabase.from('calls').insert(payload).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data }, { status: 201 })
 }

@@ -1,10 +1,10 @@
+// frontend/lib/supabaseServer.ts
 import { createClient } from '@supabase/supabase-js'
 
-export function createClients() {
-  // ⚠️ Nur in Server-Code / Route-Handlern importieren!
+export function createServerClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,   // NIE als NEXT_PUBLIC
+    process.env.SUPABASE_SERVICE_ROLE_KEY!, // ⚠️ kein NEXT_PUBLIC_ Präfix
     { auth: { persistSession: false } }
   )
 }

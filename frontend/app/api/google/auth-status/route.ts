@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createClients } from "@/lib/supabaseClients";
 
 export async function GET() {
-  const { supabase } = createClients();
+  const  supabase  = createClients();
   const uid = process.env.DEV_USER_ID ?? "dev-user";
 
   const { data, error } = await supabase
