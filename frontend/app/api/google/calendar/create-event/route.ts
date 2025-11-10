@@ -1,0 +1,66 @@
+// app/api/google/create-event/route.ts
+import { NextResponse } from "next/server";
+import { google } from "googleapis";
+import { createClients } from "@/lib/supabaseClients";
+
+export async function POST(req: Request) {
+  try {
+    const { supabase } = createClients();
+
+    const isTest = process.env.ENABLE_TEST === "true";
+    let userId: string | null = null;
+
+    if (isTest) {
+      userId = process.env.DEV_USER_ID || null;
+    } else {
+      const { data, error } = await supabase.auth.getUser();
+      if (!error && data?.user) userId = data.user.id;
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+    }
+
+    // Token für den User holen
+    const { data: tokens, error: tErr } = await supabase
+      .from("google_tokens")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+
+    if (tErr || !tokens) {
+      return NextResponse.json({ error: "no_tokens" }, { status: 400 });
+    }
+
+    // OAuth2-Client mit gespeicherten Tokens
+    const oauth2 = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID!,
+      process.env.GOOGLE_CLIENT_SECRET!,
+      // redirectUri wird hier fürs Insert nicht benötigt, nur für den Code-Exchange
+    );
+    oauth2.setCredentials({
+      access_token: tokens.access_token ?? undefined,
+      refresh_token: tokens.refresh_token ?? undefined,
+      expiry_date: typeof tokens.expiry_date === "number" ? tokens.expiry_date : undefined,
+      token_type: tokens.token_type ?? undefined,
+      scope: tokens.scope ?? undefined,
+    });
+
+    const body = await req.json(); // { summary, description, startISO, endISO, timezone? }
+
+    const calendar = google.calendar({ version: "v3", auth: oauth2 });
+    const res = await calendar.events.insert({
+      calendarId: "primary",
+      requestBody: {
+        summary: body.summary,
+        description: body.description,
+        start: { dateTime: body.startISO, timeZone: body.timezone || "Europe/Berlin" },
+        end: { dateTime: body.endISO, timeZone: body.timezone || "Europe/Berlin" },
+      },
+    });
+
+    return NextResponse.json({ ok: true, eventId: res.data.id });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? "error" }, { status: 500 });
+  }
+}
