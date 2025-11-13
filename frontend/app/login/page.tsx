@@ -1,38 +1,91 @@
+// app/login/page.tsx
 "use client";
 
-import { useEffect } from "react";
-import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { Auth } from "@supabase/auth-ui-react";
-import { supabaseBrowser } from "@/lib/supabaseBrowser";
-import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const sp = useSearchParams();
-  const redirectTo = sp.get("redirectTo") || "/calendar-test";
 
-  useEffect(() => {
-    const { data: sub } = supabaseBrowser.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) {
-        router.push(redirectTo); // nach Login weiter
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data?.error || "Login fehlgeschlagen.");
+        setLoading(false);
+        return;
       }
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [redirectTo, router]);
+
+      // ✅ Login erfolgreich → ab ins Admin-Dashboard
+      router.push("/admin");
+      router.refresh();
+    } catch (err: any) {
+      console.error(err);
+      setError("Unerwarteter Fehler beim Login.");
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="mx-auto max-w-md p-6">
-      <h1 className="text-2xl font-semibold mb-4">Login</h1>
-      <Auth
-        supabaseClient={supabaseBrowser}
-        view="sign_in"   // du kannst auch "magic_link" testen
-        appearance={{ theme: ThemeSupa }}
-        providers={[]}   // optional: Google/GitHub etc.
-        redirectTo={typeof window !== "undefined" ? window.location.origin + "/login?redirectTo=" + encodeURIComponent(redirectTo) : undefined}
-      />
-      <p className="mt-3 text-sm text-gray-500">
-        Tipp: Wenn du über deine <b>loca.lt</b>-Domain eingeloggt bist, funktioniert der Google-Flow.
-      </p>
+    <div className="min-h-screen flex items-center justify-center">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-sm border rounded-lg p-6 space-y-4"
+      >
+        <h1 className="text-xl font-semibold text-center">
+          AI-Receptionist – Login
+        </h1>
+
+        <div className="space-y-1">
+          <label className="block text-sm font-medium">E-Mail</label>
+          <input
+            type="email"
+            className="w-full border rounded px-3 py-2 text-sm"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="block text-sm font-medium">Passwort</label>
+          <input
+            type="password"
+            className="w-full border rounded px-3 py-2 text-sm"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+
+        {error && (
+          <p className="text-sm text-red-600 whitespace-pre-line">{error}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded bg-black text-white py-2 text-sm font-medium disabled:opacity-60"
+        >
+          {loading ? "Einloggen..." : "Login"}
+        </button>
+      </form>
     </div>
   );
 }

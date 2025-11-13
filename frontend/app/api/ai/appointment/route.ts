@@ -121,7 +121,18 @@ export async function POST(req: Request) {
           "Bitte Onboarding abschließen (Firmendaten/Öffnungszeiten/Services).",
       });
     }
+const { data: client } = await supabase
+  .from("clients")
+  .select("ai_enabled")
+  .eq("id", clientId)
+  .single();
 
+if (!client?.ai_enabled) {
+  return NextResponse.json({
+    status: "handoff",
+    message: "Die AI ist aktuell deaktiviert. Ich leite an einen Mitarbeiter weiter."
+  });
+}
     // 5) Service aus DB mappen (statt statischem SERVICE_MAP)
     const svc = await getServiceByMessage(clientId, parsed.service || message);
     if (!svc?.title || !svc?.durationMin) {

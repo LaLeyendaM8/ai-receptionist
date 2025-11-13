@@ -49,7 +49,18 @@ export async function POST(req: Request) {
         { status: 200 }
       );
     }
+const { data: client } = await supabase
+  .from("clients")
+  .select("ai_enabled")
+  .eq("id", clientId)
+  .single();
 
+if (!client?.ai_enabled) {
+  return NextResponse.json({
+    status: "handoff",
+    message: "Die AI ist aktuell deaktiviert. Ich leite an einen Mitarbeiter weiter."
+  });
+}
     // 4) LLM-Aufruf
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",

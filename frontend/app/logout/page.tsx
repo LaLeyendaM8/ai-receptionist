@@ -1,15 +1,24 @@
+// app/logout/page.tsx
 "use client";
-import { useEffect } from "react";
-import { supabaseBrowser } from "@/lib/supabaseBrowser";
+
 import { useRouter } from "next/navigation";
 
 export default function LogoutPage() {
   const router = useRouter();
-  useEffect(() => {
-    (async () => {
-      await supabaseBrowser.auth.signOut();
-      router.replace("/login");
-    })();
-  }, [router]);
-  return <div className="p-6">Logging out…</div>;
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <button
+        onClick={handleLogout}
+        className="rounded bg-black text-white px-4 py-2 text-sm"
+      >
+        Ausloggen
+      </button>
+    </div>
+  );
 }
