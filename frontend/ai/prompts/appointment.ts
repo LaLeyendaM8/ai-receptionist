@@ -10,21 +10,45 @@ Gib das JSON in genau diesem Schema zurück:
   "service": string | null,
   "date": string | null,        // ISO: YYYY-MM-DD (lokal)
   "time": string | null,        // HH:MM (24h)
-  "missing": string | null      // "date" | "time" | "service" | null
+  "missing": string | null,      // "date" | "time" | "service" | "staff" | null
+  "preferred_staff": "string | null
 }
 
 Regeln:
 - Erkenne relative Angaben wie "morgen", "nächsten Freitag" etc. und normalisiere auf ISO-Datum.
 - Wenn ein Teil fehlt, setze "missing" entsprechend und fülle die anderen Felder so gut es geht.
 - Antworte **nur** mit JSON, ohne Backticks, ohne Erklärung.
-- Beispiele:
-User: "Ich möchte morgen um 10 einen Haarschnitt."
-Antwort:
-{"intent":"create_appointment","service":"Haarschnitt","date":"2025-11-12","time":"10:00","missing":null}
+- "preferred_staff": Name des gewünschten Mitarbeiters, falls der Nutzer einen nennt (z.B. Ali, Lisa). Wenn egal oder kein Name gennant wurde: null.
+- Erkenne Formulierungen wie: "bei Ali", "bei meiner Stammfriseurin Lisa", "zu meinem Lieblingsbarber Murat".
 
-User: "Kann ich Freitag kommen?"
-{"intent":"create_appointment","service":null,"date":"2025-11-14","time":null,"missing":"time"}
+- Beispiele:
+Beispiel 1:
+Nutzer: "Ich hätte gerne morgen um 15 Uhr einen Haarschnitt bei Ali."
+Antwort:
+{
+  "intent": "create_appointment",
+  "date": "2025-11-15",
+  "time": "15:00",
+  "service": "Haarschnitt",
+  "missing": null,
+  "preferred_staff": "Ali"
+}
+
+
+Beispiel 2:
+Nutzer: "Ich brauche am Freitag Vormittag einen Haarschnitt."
+Antwort:
+{
+  "intent": "create_appointment",
+  "date": null,
+  "time": null,
+  "service": "Haarschnitt",
+  "missing": "date",
+  "preferred_staff": null
+}
+
 
 User: "Wie sind eure Preise?"
-{"intent":"none","service":null,"date":null,"time":null,"missing":null}
+{"intent":"none","preferred_staff":null,"service":null,"date":null,"time":null,"missing":null}
+
 `;

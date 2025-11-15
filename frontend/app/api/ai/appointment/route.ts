@@ -23,9 +23,10 @@ async function hasOverlap(
   supabase: any,
   clientId: string,
   startISO: string,
-  endISO: string
+  endISO: string,
+  staffId?: string
 ): Promise<boolean> {
-  const { data } = await supabase
+  let query = supabase
     .from("appointments")
     .select("id")
     .eq("client_id", clientId)
@@ -33,6 +34,11 @@ async function hasOverlap(
     .lte("start_at", endISO)
     .gte("end_at", startISO);
 
+  if (staffId) {
+    query = query.eq("staff_id", staffId);
+  }
+
+  const { data } = await query;
   return Array.isArray(data) && data.length > 0;
 }
 
@@ -72,6 +78,9 @@ export async function POST(req: Request) {
     if (parsed?.intent !== "create_appointment") {
       return NextResponse.json({ status: "none" });
     }
+
+const preferredStaffRaw: string =
+  (parsed.preferred_staff ?? "").toString().trim();
 
     // 2) Fehlende Infos abfragen
     if (parsed.missing) {
@@ -150,6 +159,73 @@ if (!client?.ai_enabled) {
     const endAt = new Date(startAt.getTime() + svc.durationMin * 60 * 1000);
     const startISO = startAt.toISOString();
     const endISO = endAt.toISOString();
+// 6a) Mitarbeiter des Clients laden
+const { data: staffRows } = await supabase
+  .from("staff")
+  .select("id, name, is_default, active")
+  .eq("client_id", clientId)
+  .eq("active", true);
+
+let chosenStaffId: string | null = null;
+
+if (staffRows && staffRows.length > 0) {
+  const preferredName = preferredStaffRaw.toLowerCase();
+
+  if (preferredName) {
+    // Versuch, gewünschten Mitarbeiter zu finden (fuzzy)
+    const match = staffRows.find((s) => {
+      const n = (s.name ?? "").toLowerCase();
+      return n.includes(preferredName) || preferredName.includes(n);
+    });
+
+    if (!match) {
+      // Nutzer wollte jemanden, den wir nicht kennen → nachhaken
+      return NextResponse.json({
+        status: "need_info",
+        missing: "staff",
+        question:
+          "Welchen Mitarbeiter meinen Sie genau? Bitte nennen Sie den Namen so, wie er bei uns im System steht (z. B. Ali, Lisa).",
+      });
+    }
+
+    // Wunsch-Mitarbeiter gefunden → Verfügbarkeit prüfen
+    const busy = await hasOverlap(supabase, clientId, startISO, endISO, match.id);
+    if (busy) {
+      return NextResponse.json({
+        status: "need_info",
+        missing: "time",
+        question: `${match.name} ist zu dieser Zeit ausgebucht. Passt Ihnen eine andere Uhrzeit oder ein anderer Mitarbeiter?`,
+      });
+    }
+
+    chosenStaffId = match.id;
+  } else {
+    // Kein Wunsch geäußert
+    if (staffRows.length > 1) {
+      // Nachfrage-Frage, weil mehrere Mitarbeiter existieren
+      return NextResponse.json({
+        status: "need_info",
+        missing: "staff",
+        question:
+          "Haben Sie einen bestimmten Mitarbeiterwunsch (z. B. Ali, Lisa) oder ist es egal?",
+      });
+    }
+
+    // Nur ein Mitarbeiter → nimm den, wenn frei
+    const only = staffRows[0];
+    const busy = await hasOverlap(supabase, clientId, startISO, endISO, only.id);
+    if (busy) {
+      return NextResponse.json({
+        status: "need_info",
+        missing: "time",
+        question:
+          `${only.name ?? "Unser Mitarbeiter"} ist zu dieser Zeit ausgebucht. Passt Ihnen eine andere Uhrzeit?`,
+      });
+    }
+    chosenStaffId = only.id;
+  }
+}
+
 
     // 7) Öffnungszeiten-Check (Helper aus ai/logic/hours)
     const within = await isWithinBusinessHours(clientId, parsed.date, parsed.time);
@@ -181,6 +257,7 @@ if (!client?.ai_enabled) {
         start_at: startISO,
         end_at: endISO,
         service: svc.title,
+        staff_id: chosenStaffId,
         source: "ai",
       })
       .select()

@@ -102,6 +102,7 @@ export async function POST(req: Request) {
         status: "booked",
         source: "ai",
         notes: draft.notes ?? "",
+        staff_id: draft.staff_id,
       })
       .select()
       .limit(1);
