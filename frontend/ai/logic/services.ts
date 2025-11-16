@@ -1,19 +1,39 @@
-import { createClients } from "@/lib/supabaseClients";
+// frontend/ai/logic/services.ts
+import { SupabaseClient } from "@supabase/supabase-js";
 
-export async function getServiceByMessage(clientId: string, message: string) {
-  const supabase = createClients();
-  const { data } = await supabase
+export type ServiceInfo = {
+  id: string;
+  title: string;
+  durationMin: number;
+  defaultStaffId: string | null;
+};
+
+export async function getServiceByMessage(
+  supabase: SupabaseClient,
+  clientId: string,
+  message: string
+): Promise<ServiceInfo | null> {
+  const term = (message || "").trim();
+
+  // sehr simple Suche: Titel enthält den Begriff (kannst du später smarter machen)
+  const { data, error } = await supabase
     .from("services")
-    .select("name,duration_min")
+    .select("id, title, duration_min, default_staff_id")
     .eq("client_id", clientId)
-    .eq("active", true);
+    .ilike("title", `%${term}%`)
+    .maybeSingle();
 
-  if (!data?.length) return { title: "Termin", durationMin: 30 };
+  if (error) {
+    console.error("getServiceByMessage error", error);
+    return null;
+  }
 
-  // simple fuzzy contains
-  const lowered = message.toLowerCase();
-  const hit = data.find(s => lowered.includes(s.name.toLowerCase()));
-  if (hit) return { title: hit.name, durationMin: hit.duration_min };
+  if (!data) return null;
 
-  return { title: data[0].name, durationMin: data[0].duration_min }; // fallback: erster aktiver
+  return {
+    id: data.id,
+    title: data.title,
+    durationMin: data.duration_min ?? 30,
+    defaultStaffId: data.default_staff_id ?? null,
+  };
 }

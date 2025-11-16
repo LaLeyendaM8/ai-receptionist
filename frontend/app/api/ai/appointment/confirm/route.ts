@@ -103,6 +103,8 @@ export async function POST(req: Request) {
         source: "ai",
         notes: draft.notes ?? "",
         staff_id: draft.staff_id,
+        customer_name: draft.customer_name,
+        customer_phone: draft.customer_phone,
       })
       .select()
       .limit(1);
@@ -137,7 +139,7 @@ export async function POST(req: Request) {
       status: "created",
       appointment,
       googleEventId: ins.data.id ?? undefined,
-      say: `Alles klar – ich habe den Termin eingetragen und dir im Kalender hinterlegt.`,
+      say: `Alles klar – ich habe den Termin für ${appointment.customer_name ?? "dich"} in unserem Kalender hinterlegt.`,
     });
   } catch (e: any) {
     return NextResponse.json({ error: "confirm_failed", details: e?.message }, { status: 500 });
