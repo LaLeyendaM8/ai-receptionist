@@ -8,6 +8,7 @@ import { createClients } from "@/lib/supabaseClients";
 import { faqPrompt } from "@/ai/prompts/faq";
 import { buildFaqContext } from "@/ai/logic/faqContext";
 import { notifyHandoff } from "@/lib/notifyHandoff";
+import { getCurrentUserId } from "@/lib/authServer";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -22,12 +23,15 @@ export async function POST(req: Request) {
 
   try {
     // 1) User ermitteln
-    const { data: auth } = await supabase.auth.getUser();
-    const userId = auth?.user?.id ?? process.env.DEV_USER_ID ?? null;
-    if (!userId) {
-      return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-    }
+  
 
+    const userId = await getCurrentUserId(supabase);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "unauthenticated" },
+        { status: 401 }
+      );
+    }
     // 2) Body & Frage lesen
     const body = await req.json().catch(() => null);
     const userQuestion: string | undefined = body?.message;

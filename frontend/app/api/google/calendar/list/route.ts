@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { createClients } from "@/lib/supabaseClients";
+import { getCurrentUserId } from "@/lib/authServer";
 
 export async function GET() {
   const supabase = createClients();
-  const userId = process.env.DEV_USER_ID!; // für MVP
-
+  const userId = await getCurrentUserId(supabase);
+      if (!userId) {
+        return NextResponse.json(
+          { error: "unauthenticated" },
+          { status: 401 }
+        );
+      }
   const { data: tok, error } = await supabase
     .from("google_tokens").select("*").eq("user_id", userId).single();
   if (error || !tok) return NextResponse.json({ error: "no_tokens" }, { status: 400 });

@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { createClients } from "@/lib/supabaseClients";
+import { getCurrentUserId } from "@/lib/authServer";
 
 export async function GET() {
   const supabase = createClients();
-  const userId = process.env.DEV_USER_ID!;
+  const userId = await getCurrentUserId(supabase);
+      if (!userId) {
+        return NextResponse.json(
+          { error: "unauthenticated" },
+          { status: 401 }
+        );
+      }
 
   // DB: unsere appointments der nächsten 14 Tage
   const { data: appts, error: aErr } = await supabase

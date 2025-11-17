@@ -149,7 +149,7 @@ export default function OnboardingPage() {
       } else {
         setSuccess(true);
         // nach Onboarding ins Admin-Dashboard
-        router.push("/admin");
+        router.push("/dashboard");
       }
     } catch (err: any) {
       setError(err?.message || "Unbekannter Fehler beim Speichern.");

@@ -1,14 +1,18 @@
 // app/admin/settings/page.tsx
 import { createClients } from "@/lib/supabaseClients";
 import { revalidatePath } from "next/cache";
+import { getCurrentUserId } from "@/lib/authServer";
 
 export const dynamic = "force-dynamic";
 
 async function getClient() {
   const supabase = createClients();
 
-  // DEV: wir nehmen den DEV_USER_ID Fallback
-  const userId = process.env.DEV_USER_ID!;
+  
+  const userId = await getCurrentUserId(supabase);
+  if(!userId){
+    return null;
+  }
   const { data: client } = await supabase
     .from("clients")
     .select("id, ai_enabled")
@@ -23,7 +27,11 @@ export async function toggleAIAction() {
   "use server";
 
   const supabase = createClients();
-  const userId = process.env.DEV_USER_ID!;
+  const userId = await getCurrentUserId(supabase);
+           if (!userId) {
+             throw new Error("unauthenticated");
+           }
+  
 
   const { data: client } = await supabase
     .from("clients")
@@ -39,7 +47,7 @@ export async function toggleAIAction() {
     .eq("id", client.id);
 
   // Seite neu laden, damit der Status-Text sich aktualisiert
-  revalidatePath("/admin/settings");
+  revalidatePath("/dashboard/settings");
 }
 
 export default async function SettingsPage() {

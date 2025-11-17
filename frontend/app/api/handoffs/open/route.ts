@@ -1,12 +1,17 @@
 // app/api/handoffs/open/route.ts
 import { NextResponse } from "next/server";
 import { createClients } from "@/lib/supabaseClients";
+import { getCurrentUserId } from "@/lib/authServer";
 
 export async function GET() {
   const supabase = createClients();
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth?.user?.id ?? process.env.DEV_USER_ID!;
-  if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  const userId = await getCurrentUserId(supabase);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "unauthenticated" },
+        { status: 401 }
+      );
+    }
 
   // Client des Owners holen
   const { data: client } = await supabase

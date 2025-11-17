@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClients } from "@/lib/supabaseClients";
+import { getCurrentUserId } from "@/lib/authServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,16 +10,12 @@ export async function POST(req: Request) {
 
   try {
     // 1) User bestimmen
-    const { data: auth, error: authErr } = await supabase.auth.getUser();
-    if (authErr) {
-      console.error("resolve: auth error:", authErr);
-    }
-
-    const userId = auth?.user?.id ?? process.env.DEV_USER_ID ?? null;
-
+    const userId = await getCurrentUserId(supabase);
     if (!userId) {
-      console.error("resolve: no userId (auth + DEV_USER_ID both null)");
-      return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+      return NextResponse.json(
+        { error: "unauthenticated" },
+        { status: 401 }
+      );
     }
 
     // 2) Body lesen

@@ -1,21 +1,19 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { createClients } from "@/lib/supabaseClients";
+import { getCurrentUserId } from "@/lib/authServer";
 
 export async function POST(req: Request) {
   try {
     const supabase = createClients();
 
-    const isTest = process.env.ENABLE_TEST === "true";
-    let userId: string | null = null;
-
-    if (isTest) {
-      userId = process.env.DEV_USER_ID || null;
-    } else {
-      const { data, error } = await supabase.auth.getUser();
-      if (!error && data?.user) userId = data.user.id;
-    }
-    if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+    const userId = await getCurrentUserId(supabase);
+        if (!userId) {
+          return NextResponse.json(
+            { error: "unauthenticated" },
+            { status: 401 }
+          );
+        }
 
     // Tokens laden
     const { data: tokens, error: tErr } = await supabase

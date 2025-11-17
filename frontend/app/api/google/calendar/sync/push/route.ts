@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getOAuth2ForUser } from "@/lib/googleServer";
+import { getCurrentUserId } from "@/lib/authServer";
+import { createClients } from "@/lib/supabaseClients";
 
 export async function POST() {
-  const userId = process.env.DEV_USER_ID!;
-  const { oauth2, supabase } = await getOAuth2ForUser(userId);
+  const supabase = createClients();
+      const userId = await getCurrentUserId(supabase);
+          if (!userId) {
+            return NextResponse.json(
+              { error: "unauthenticated" },
+              { status: 401 }
+            );
+          }
+  const { oauth2 } = await getOAuth2ForUser(userId);
   const calendar = google.calendar({ version: "v3", auth: oauth2 });
 
   // Hole alle Termine der Zukunft (AI-Quelle), inkl. evtl. 'canceled'

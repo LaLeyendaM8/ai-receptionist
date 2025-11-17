@@ -10,6 +10,7 @@ import { getServiceByMessage } from "@/ai/logic/services";
 import { getOAuth2ForUser } from "@/lib/googleServer";
 import { google } from "googleapis";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { getCurrentUserId } from "@/lib/authServer";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -109,8 +110,7 @@ export async function POST(req: Request) {
     const supabase = createClients();
 
     // User ermitteln (DEV_USER_ID als Fallback)
-    const { data: auth } = await supabase.auth.getUser();
-    const userId = auth?.user?.id ?? process.env.DEV_USER_ID!;
+    const userId = await getCurrentUserId(supabase);
     if (!userId) {
       return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
     }
@@ -147,10 +147,13 @@ export async function POST(req: Request) {
       .single();
 
     if (clientErr || !clientRow?.id) {
+      console.error("[APPOINTMENT] client not configured", {userId, clientErr});
+
       return NextResponse.json(
         {
-          status: "need_client",
-          message: "Bitte Onboarding abschließen (Firmendaten/Öffnungszeiten/Services).",
+          status: "error",
+          error: "client_not_configured",
+          message: "Aktuell kann ich leider keine Termine anlegen. Bitte versuchen Sie es später erneut.",
         },
         { status: 200 }
       );
@@ -198,7 +201,7 @@ const { data: nextAppt } = await query
       return NextResponse.json(
         {
           status: "info",
-          message: `Du hast einen Termin am ${dateStr} um ${timeStr} für "${nextAppt.title}".`,
+          message: `Sie haben einen Termin am ${dateStr} um ${timeStr} für "${nextAppt.title}".`,
           appointmentId: nextAppt.id,
         },
         { status: 200 }
@@ -228,7 +231,7 @@ const { data: nextAppt } = await query
           {
             status: "need_info",
             missing: "time",
-            question: "Um wie viel Uhr war der Termin, den du stornieren möchtest? (HH:MM)",
+            question: "Um wie viel Uhr war der Termin, den sie stornieren möchten? (HH:MM)",
           },
           { status: 200 }
         );
@@ -310,7 +313,7 @@ if (!customerName) {
           {
             status: "need_info",
             missing: "new_date",
-            question: "Auf welches Datum möchtest du den Termin verschieben? (YYYY-MM-DD)",
+            question: "Auf welches Datum möchten sie den Termin verschieben? (YYYY-MM-DD)",
           },
           { status: 200 }
         );
@@ -320,7 +323,7 @@ if (!customerName) {
           {
             status: "need_info",
             missing: "new_time",
-            question: "Auf welche Uhrzeit möchtest du den Termin verschieben? (HH:MM)",
+            question: "Auf welche Uhrzeit möchten sie den Termin verschieben? (HH:MM)",
           },
           { status: 200 }
         );
@@ -371,7 +374,7 @@ if (newStart.getTime() <= now.getTime()) {
       status: "need_info",
       missing: "new_date",
       question:
-        "Das neue Datum liegt in der Vergangenheit. Auf welches zukünftige Datum möchtest du verschieben? (YYYY-MM-DD)",
+        "Das neue Datum liegt in der Vergangenheit. Auf welches zukünftige Datum möchten sie verschieben? (YYYY-MM-DD)",
     },
     { status: 200 }
   );
@@ -393,8 +396,8 @@ const hoursResult = await isWithinBusinessHours(
 if (!hoursResult.ok) {
   const msg =
     hoursResult.reason === "closed"
-      ? "An dem Tag ist geschlossen. Hast du einen anderen Tag im Kopf?"
-      : "Die Uhrzeit liegt außerhalb der Öffnungszeiten. Welche Zeit innerhalb der Öffnungszeiten passt dir?";
+      ? "An dem Tag ist geschlossen. Haben sie einen anderen Tag im Kopf?"
+      : "Die Uhrzeit liegt außerhalb der Öffnungszeiten. Welche Zeit innerhalb der Öffnungszeiten passt Ihnen?";
 
   return NextResponse.json(
     {
@@ -483,7 +486,7 @@ console.log("PASSED HOURS CHECK");
       return NextResponse.json(
         {
           status: "rescheduled",
-          message: `Ich habe deinen Termin von ${oldDateStr} ${oldTimeStr} auf ${newDateStr} ${newTimeStr} verschoben.`,
+          message: `Ich habe Ihren Termin von ${oldDateStr} ${oldTimeStr} auf ${newDateStr} ${newTimeStr} verschoben.`,
           appointmentId: updated.id,
         },
         { status: 200 }
@@ -502,10 +505,10 @@ console.log("PASSED HOURS CHECK");
     if (parsed.missing) {
       const q =
         parsed.missing === "date"
-          ? "An welchem Tag möchtest du den Termin? (YYYY-MM-DD)"
+          ? "An welchem Tag möchten Sie den Termin? (YYYY-MM-DD)"
           : parsed.missing === "time"
-          ? "Welche Uhrzeit passt dir? (HH:MM, 24h)"
-          : "Welche Leistung möchtest du genau? (z. B. Haarschnitt)?";
+          ? "Welche Uhrzeit passt Ihnen? (HH:MM, 24h)"
+          : "Welche Leistung möchten sie genau? (z. B. Haarschnitt)?";
 
       return NextResponse.json(
         {
@@ -549,7 +552,7 @@ console.log("PASSED HOURS CHECK");
           status: "need_info",
           missing: "service",
           question:
-            "Für welche Leistung möchtest du buchen? (z. B. Haarschnitt, Färben, Maniküre)",
+            "Für welche Leistung möchten sie buchen? (z. B. Haarschnitt, Färben, Maniküre)",
         },
         { status: 200 }
       );
@@ -584,7 +587,7 @@ if (startAt.getTime() <= now.getTime()) {
       status: "need_info",
       missing: "date",
       question:
-        "Das Datum liegt in der Vergangenheit. Welches zukünftige Datum passt dir? (Bitte YYYY-MM-DD)",
+        "Das Datum liegt in der Vergangenheit. Welches zukünftige Datum passt Ihnen? (Bitte YYYY-MM-DD)",
     },
     { status: 200 }
   );
@@ -604,8 +607,8 @@ if (startAt.getTime() <= now.getTime()) {
 if (!hoursResult.ok) {
   const msg =
     hoursResult.reason === "closed"
-      ? "An dem Tag ist geschlossen. Hast du einen anderen Tag im Kopf?"
-      : "Die Uhrzeit liegt außerhalb der Öffnungszeiten. Welche Zeit innerhalb der Öffnungszeiten passt dir?";
+      ? "An dem Tag ist geschlossen. Haben sie einen anderen Tag im Kopf?"
+      : "Die Uhrzeit liegt außerhalb der Öffnungszeiten. Welche Zeit innerhalb der Öffnungszeiten passt Ihnen?";
 
   return NextResponse.json(
     {
@@ -638,7 +641,7 @@ if (hasOverlapResult) {
     {
       status: "need_info",
       missing: "time",
-      question: "Dieser Slot ist belegt. 30 Min früher oder später okay?",
+      question: "Dieser Slot ist belegt. Andere Zeit (z.b 30 Min früher oder später okay?",
     },
     { status: 200 }
   );

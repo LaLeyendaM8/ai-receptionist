@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { createClients } from "@/lib/supabaseClients";
 import { getOAuth2ForUser } from "@/lib/googleServer";
 import { google } from "googleapis";
+import { getCurrentUserId } from "@/lib/authServer";
 
 async function ensureClientForUser(supabase: any, userId: string): Promise<string> {
   const { data: existing } = await supabase
@@ -64,11 +65,14 @@ export async function POST(req: Request) {
     const supabase = createClients();
     const body = await req.json().catch(() => null);
     const draftId: string | undefined = body?.draftId;
-    const userIdFromBody: string | undefined = body?.userId;
 
-    const { data: auth } = await supabase.auth.getUser();
-    const userId = userIdFromBody ?? auth?.user?.id ?? process.env.DEV_USER_ID!;
-    if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+    const userId = await getCurrentUserId(supabase);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "unauthenticated" },
+        { status: 401 }
+      );
+    }
     if (!draftId) return NextResponse.json({ error: "missing_draftId" }, { status: 400 });
 
     // Draft holen
@@ -139,7 +143,7 @@ export async function POST(req: Request) {
       status: "created",
       appointment,
       googleEventId: ins.data.id ?? undefined,
-      say: `Alles klar – ich habe den Termin für ${appointment.customer_name ?? "dich"} in unserem Kalender hinterlegt.`,
+      say: `Alles klar – ich habe den Termin für ${appointment.customer_name ?? "Sie"} in unserem Kalender hinterlegt.`,
     });
   } catch (e: any) {
     return NextResponse.json({ error: "confirm_failed", details: e?.message }, { status: 500 });

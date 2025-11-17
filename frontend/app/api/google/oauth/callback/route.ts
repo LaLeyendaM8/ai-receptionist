@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { createClients } from "@/lib/supabaseClients";
+import { getCurrentUserId } from "@/lib/authServer";
 
 export async function GET(req: Request) {
   try {
@@ -21,24 +22,25 @@ export async function GET(req: Request) {
     const { tokens } = await oauth2.getToken({ code, redirect_uri: redirectUri });
 
     // 2) User bestimmen (DEV_USER_ID muss uuid sein)
-    let uid = process.env.DEV_USER_ID ?? "dev-user";
-    try {
-      if (stateStr) {
-        const s = JSON.parse(stateStr);
-        if (s?.uid) uid = s.uid;
-      }
-    } catch { /* ignore */ }
+    const supabase = createClients();
+      const userId = await getCurrentUserId(supabase);
+          if (!userId) {
+            return NextResponse.json(
+              { error: "unauthenticated" },
+              { status: 401 }
+            );
+          }
 
     // 3) Tokens mergen & speichern (refresh_token nie verlieren)
-    const supabase = createClients();
+    
     const { data: existing } = await supabase
       .from("google_tokens")
       .select("*")
-      .eq("user_id", uid)
+      .eq("user_id", userId)
       .single();
 
     const payload = {
-      user_id: uid,
+      user_id: userId,
       access_token: tokens.access_token ?? existing?.access_token ?? null,
       refresh_token: tokens.refresh_token ?? existing?.refresh_token ?? null,
       expiry_date: tokens.expiry_date ?? existing?.expiry_date ?? null,

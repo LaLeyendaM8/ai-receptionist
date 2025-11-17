@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getOAuth2ForUser } from "@/lib/googleServer";
+import { getCurrentUserId } from "@/lib/authServer";
+import { createClients } from "@/lib/supabaseClients";
 
 export async function GET() {
-  const userId = process.env.DEV_USER_ID!;
-  const { oauth2, supabase } = await getOAuth2ForUser(userId);
+  const supabase = createClients();
+      const userId = await getCurrentUserId(supabase);
+          if (!userId) {
+            return NextResponse.json(
+              { error: "unauthenticated" },
+              { status: 401 }
+            );
+          }
+  const { oauth2 } = await getOAuth2ForUser(userId);
 
   // DB: unsere nächsten 14 Tage
   const { data: appts } = await supabase

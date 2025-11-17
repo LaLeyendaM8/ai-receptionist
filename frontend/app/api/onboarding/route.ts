@@ -1,16 +1,19 @@
 // app/api/onboarding/route.ts
 import { NextResponse } from "next/server";
 import { createClients } from "@/lib/supabaseClients";
+import { getCurrentUserId } from "@/lib/authServer";
 
 export async function POST(req: Request) {
   const supabase = createClients();
 
   // 1) User ermitteln
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth?.user?.id ?? process.env.DEV_USER_ID ?? null;
-  if (!userId) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  const userId = await getCurrentUserId(supabase);
+    if (!userId) {
+      return NextResponse.json(
+        { error: "unauthenticated" },
+        { status: 401 }
+      );
+    }
 
   // 2) Body parsen
   const body = await req.json().catch(() => null);
@@ -22,7 +25,7 @@ export async function POST(req: Request) {
     client,
     hours = [],
     services = [],
-    faqs = [],
+    client_faqs = [],
     staff = [],
   } = body;
 
@@ -77,7 +80,7 @@ export async function POST(req: Request) {
     }
 
     // 6) faqs upsert
-    for (const f of faqs) {
+    for (const f of client_faqs) {
       const row = {
         client_id: clientId,
         question: f.question,
@@ -86,7 +89,7 @@ export async function POST(req: Request) {
       };
 
       await supabase
-        .from("faqs")
+        .from("client_faqs")
         .upsert(row, { onConflict: "client_id,question" });
     }
 
