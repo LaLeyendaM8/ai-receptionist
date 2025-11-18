@@ -1,0 +1,100 @@
+table_name,column_name,data_type,is_nullable,column_default,ordinal_position,primary_key,index,index_column
+appointment_drafts,id,uuid,NO,gen_random_uuid(),1,id,appointment_drafts_pkey,id
+appointment_drafts,user_id,uuid,NO,null,2,null,null,null
+appointment_drafts,client_id,uuid,YES,null,3,null,null,null
+appointment_drafts,title,text,NO,null,4,null,null,null
+appointment_drafts,start_at,timestamp with time zone,NO,null,5,null,null,null
+appointment_drafts,end_at,timestamp with time zone,NO,null,6,null,null,null
+appointment_drafts,meta,jsonb,YES,null,7,null,null,null
+appointment_drafts,created_at,timestamp with time zone,NO,now(),8,null,null,null
+appointment_drafts,service_id,uuid,YES,null,9,null,null,null
+appointment_drafts,staff_id,uuid,YES,null,10,null,null,null
+appointment_drafts,source,text,YES,'''ai''::text'::text,11,null,null,null
+appointment_drafts,customer_name,text,YES,null,12,null,null,null
+appointment_drafts,customer_phone,text,YES,null,13,null,null,null
+appointments,id,uuid,NO,gen_random_uuid(),1,id,appointments_pkey,id
+appointments,client_id,uuid,NO,null,2,null,idx_appointments_client_id,client_id
+appointments,client_id,uuid,NO,null,2,null,idx_appt_client,client_id
+appointments,title,text,YES,null,3,null,null,null
+appointments,customer_name,text,YES,null,4,null,null,null
+appointments,customer_phone,text,YES,null,5,null,null,null
+appointments,start_at,timestamp with time zone,NO,null,6,null,idx_appt_start,start_at
+appointments,end_at,timestamp with time zone,YES,null,7,null,null,null
+appointments,source,text,YES,'ai'::text,8,null,null,null
+appointments,status,text,YES,'booked'::text,9,null,null,null
+appointments,notes,text,YES,null,10,null,null,null
+appointments,created_at,timestamp with time zone,NO,now(),11,null,null,null
+appointments,google_event_id,text,YES,null,12,null,idx_appt_google_event,google_event_id
+appointments,google_event_id,text,YES,null,12,null,idx_appts_google_event,google_event_id
+appointments,staff_id,uuid,YES,null,13,null,null,null
+business_hours,id,uuid,NO,gen_random_uuid(),1,id,business_hours_pkey,id
+business_hours,client_id,uuid,NO,null,2,null,business_hours_client_id_weekday_key,client_id
+business_hours,weekday,integer,NO,null,3,null,business_hours_client_id_weekday_key,weekday
+business_hours,open_min,integer,NO,null,4,null,null,null
+business_hours,close_min,integer,NO,null,5,null,null,null
+business_hours,is_closed,boolean,YES,false,6,null,null,null
+calls,id,uuid,NO,gen_random_uuid(),1,id,calls_pkey,id
+calls,client_id,uuid,YES,null,2,null,idx_calls_client,client_id
+calls,client_id,uuid,YES,null,2,null,idx_calls_client_id,client_id
+calls,direction,text,NO,'inbound'::text,3,null,null,null
+calls,from_number,text,YES,null,4,null,null,null
+calls,to_number,text,YES,null,5,null,null,null
+calls,started_at,timestamp with time zone,NO,now(),6,null,idx_calls_started,started_at
+calls,started_at,timestamp with time zone,NO,now(),6,null,idx_calls_started_at,started_at
+calls,duration_seconds,integer,YES,null,7,null,null,null
+calls,language,text,YES,'de'::text,8,null,null,null
+calls,outcome,text,YES,null,9,null,null,null
+calls,booking_id,uuid,YES,null,10,null,null,null
+calls,transcript,text,YES,null,11,null,null,null
+calls,meta,jsonb,YES,null,12,null,null,null
+client_faqs,id,uuid,NO,gen_random_uuid(),1,id,client_faqs_pkey,id
+client_faqs,client_id,uuid,YES,null,2,null,null,null
+client_faqs,question,text,NO,null,3,null,null,null
+client_faqs,answer,text,NO,null,4,null,null,null
+client_faqs,active,boolean,YES,true,5,null,null,null
+client_faqs,created_at,timestamp with time zone,YES,now(),6,null,null,null
+clients,id,uuid,NO,gen_random_uuid(),1,id,clients_pkey,id
+clients,name,text,NO,null,2,null,null,null
+clients,industry,text,YES,null,3,null,null,null
+clients,phone,text,YES,null,4,null,null,null
+clients,email,text,YES,null,5,null,null,null
+clients,address,jsonb,YES,null,6,null,null,null
+clients,timezone,text,NO,'Europe/Berlin'::text,7,null,null,null
+clients,active,boolean,NO,true,8,null,null,null
+clients,owner_user,uuid,NO,auth.uid(),9,null,idx_clients_owner,owner_user
+clients,created_at,timestamp with time zone,NO,now(),10,null,null,null
+clients,ai_enabled,boolean,YES,null,11,null,null,null
+clients,twilio_number,text,YES,null,12,null,clients_twilio_number_key,twilio_number
+google_tokens,user_id,uuid,NO,null,1,user_id,google_tokens_pkey,user_id
+google_tokens,user_id,uuid,NO,null,1,user_id,google_tokens_user_id_idx,user_id
+google_tokens,user_id,uuid,NO,null,1,user_id,google_tokens_user_unique,user_id
+google_tokens,access_token,text,YES,null,2,null,null,null
+google_tokens,refresh_token,text,YES,null,3,null,null,null
+google_tokens,expiry_date,bigint,YES,null,4,null,null,null
+google_tokens,scope,text,YES,null,5,null,null,null
+google_tokens,token_type,text,YES,null,6,null,null,null
+google_tokens,raw,jsonb,YES,null,7,null,null,null
+google_tokens,updated_at,timestamp with time zone,YES,now(),8,null,null,null
+handoffs,id,uuid,NO,gen_random_uuid(),1,id,handoffs_pkey,id
+handoffs,client_id,uuid,YES,null,2,null,null,null
+handoffs,user_id,uuid,YES,null,3,null,null,null
+handoffs,question,text,NO,null,4,null,null,null
+handoffs,intent,text,YES,'unknown'::text,5,null,null,null
+handoffs,confidence,numeric,YES,null,6,null,null,null
+handoffs,status,text,YES,'open'::text,7,null,null,null
+handoffs,created_at,timestamp with time zone,YES,now(),8,null,null,null
+handoffs,source,text,YES,'faq'::text,9,null,null,null
+services,id,uuid,NO,gen_random_uuid(),1,id,services_pkey,id
+services,client_id,uuid,NO,null,2,null,services_client_id_name_key,client_id
+services,title,text,NO,null,3,null,services_client_id_name_key,title
+services,duration_min,integer,NO,30,4,null,null,null
+services,price_cents,integer,YES,null,5,null,null,null
+services,active,boolean,YES,true,6,null,null,null
+services,default_staff_id,uuid,YES,null,7,null,null,null
+staff,id,uuid,NO,gen_random_uuid(),1,id,staff_pkey,id
+staff,client_id,uuid,NO,null,2,null,staff_client_id_idx,client_id
+staff,name,text,NO,null,3,null,null,null
+staff,calendar_id,text,YES,null,4,null,null,null
+staff,is_default,boolean,NO,false,5,null,null,null
+staff,active,boolean,NO,true,6,null,null,null
+staff,created_at,timestamp with time zone,NO,now(),7,null,null,null

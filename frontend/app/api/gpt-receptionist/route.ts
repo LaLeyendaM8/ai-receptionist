@@ -6,6 +6,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const BASE =
+  process.env.PUBLIC_BASE_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  "http://localhost:3000";
 
 export async function GET() {
   return NextResponse.json({ ok: true, route: "/api/gpt-receptionist" });
@@ -45,19 +49,83 @@ Wenn Terminwunsch erkannt: intent="appointment_booking".
     const content = resp.choices[0]?.message?.content ?? "{}";
 
     // Robust parsen
-    let data: any;
+    let brain: any;
     try {
-      data = JSON.parse(content);
+      brain = JSON.parse(content);
     } catch {
       const match = content.match(/\{[\s\S]*\}$/m);
-      data = match ? JSON.parse(match[0]) : {
-        intent: "other",
-        reply: content,
-        meta: { language: "de", confidence: 0.5 },
-      };
+      brain = match
+        ? JSON.parse(match[0])
+        : {
+            intent: "other",
+            reply: content,
+            meta: { language: "de", confidence: 0.5 },
+          };
     }
 
-    return NextResponse.json({ success: true, ...data });
+    // --- Brain-Routing ---
+    const intent = (brain.intent || "").toLowerCase();
+    let result: any = { intent, meta: brain.meta || {} };
+
+    // 1) Termin-Kram → Appointment-Superlogik
+    if (
+      intent === "appointment" ||
+      intent === "appointment_booking" ||
+      intent === "route_appointment"
+    ) {
+      const r = await fetch(`${BASE}/api/ai/appointment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+
+      if (!r.ok) {
+        console.warn("[BRAIN] appointment status:", r.status);
+        result.reply =
+          brain.reply ||
+          "Es gab ein Problem bei der Terminverwaltung. Bitte versuchen Sie es später erneut.";
+      } else {
+        const data = await r.json();
+        result = { ...result, ...data };
+
+        // etwas zum Vorlesen für /api/call/handle vorbereiten
+        if (data.status === "need_info" && data.question) {
+          result.reply = data.question;
+        } else if (data.message) {
+          result.reply = data.message;
+        } else if (data.reply) {
+          result.reply = data.reply;
+        }
+      }
+    }
+    // 2) FAQ → /api/ai/faq
+    else if (intent === "faq") {
+      const r = await fetch(`${BASE}/api/ai/faq`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+
+      if (!r.ok) {
+        console.warn("[BRAIN] faq status:", r.status);
+        result.reply =
+          brain.reply ||
+          "Leider kann ich Ihre Frage gerade nicht beantworten. Bitte versuchen Sie es später erneut.";
+      } else {
+        const data = await r.json();
+        result = { ...result, ...data };
+        result.reply = data.answer ?? data.reply ?? brain.reply;
+      }
+    }
+    // 3) Alles andere → direkt GPT-Reply (Smalltalk, etc.)
+    else {
+      result.reply =
+        brain.reply ||
+        "Alles klar, ich habe das so notiert. Gibt es sonst noch etwas, womit ich helfen kann?";
+    }
+
+    return NextResponse.json({ success: true, ...result });
+
   } catch (err: any) {
     console.error("GPT Error:", err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

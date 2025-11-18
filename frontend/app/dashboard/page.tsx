@@ -7,7 +7,7 @@ export default async function AdminDashboard() {
   const { data: calls } = await supabase
     .from("calls")
     .select("*")
-    .order("created_at", { ascending: false })
+    .order("started_at", { ascending: false })
     .limit(10);
 
   // 2) Letzte Termine holen
