@@ -1,28 +1,59 @@
 import { createClients } from "@/lib/supabaseClients";
+import { getCurrentUserId } from "@/lib/authServer";
+import {redirect} from "next/navigation"; 
 
-export default async function AdminDashboard() {
+export default async function DashboardPage() {
   const supabase = createClients();
 
-  // 1) Letzte Anrufe holen
-  const { data: calls } = await supabase
-    .from("calls")
-    .select("*")
-    .order("started_at", { ascending: false })
-    .limit(10);
+  // 1) eingeloggten User holen
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    redirect("/login"); // redirect ist `never`, TS weiß: ab hier immer userId
+  }
 
-  // 2) Letzte Termine holen
-  const { data: appointments } = await supabase
-    .from("appointments")
-    .select("id, title, start_at, end_at, status, source")
-    .order("start_at", { ascending: false })
-    .limit(10);
+  // 2) Client zu diesem User holen
+  const { data: client, error: clientErr } = await supabase
+    .from("clients")
+    .select("id, name")
+    .eq("owner_user", userId)
+    .maybeSingle();
 
-  // 3) Logs holen (später evtl. handoffs / faq_logs)
-  const { data: handoffs } = await supabase
-    .from("handoffs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(10);
+  if (clientErr) {
+    console.error("client_load_failed", clientErr);
+    redirect("/onboarding");
+  }
+
+  if (!client) {
+    // kein Client → zurück ins Onboarding
+    redirect("/onboarding");
+  }
+
+  const clientId = client.id;
+
+  // 3) Daten fürs Dashboard – alle gefiltert auf client_id
+  const [{ data: calls }, { data: appointments }, { data: handoffs }] =
+    await Promise.all([
+      supabase
+        .from("calls")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false })
+        .limit(10),
+
+      supabase
+        .from("appointments")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("start_time", { ascending: false })
+        .limit(10),
+
+      supabase
+        .from("handoffs")
+        .select("*")
+        .eq("client_id", clientId)
+        .eq("status", "open")
+        .order("created_at", { ascending: false }),
+    ]);
 
   return (
     <div className="p-6 space-y-12">
