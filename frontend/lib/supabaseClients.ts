@@ -1,10 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
+// frontend/lib/supabaseClients.ts
+import { createServerClientTyped, type TypedSupabaseClient } from "./supabaseServer";
 
-export function createClients() {
-  // ⚠️ Nur in Server-Code / Route-Handlern importieren!
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,   // NIE als NEXT_PUBLIC
-    { auth: { persistSession: false } }
-  )
+export async function createClients(): Promise<TypedSupabaseClient> {
+  return await createServerClientTyped();
 }

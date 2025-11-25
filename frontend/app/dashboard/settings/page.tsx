@@ -1,55 +1,70 @@
-// app/admin/settings/page.tsx
-import { createClients } from "@/lib/supabaseClients";
+// app/dashboard/settings/page.tsx
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { createServerClientTyped } from "@/lib/supabaseServer";
 import { getCurrentUserId } from "@/lib/authServer";
 
 export const dynamic = "force-dynamic";
 
+// --- Hilfsfunktion: Client des eingeloggten Users holen ---
 async function getClient() {
-  const supabase = createClients();
+  const supabase = await createServerClientTyped();
 
-  
   const userId = await getCurrentUserId(supabase);
-  if(!userId){
-    return null;
+  if (!userId) {
+    redirect("/login");
   }
-  const { data: client } = await supabase
+
+  const { data: client, error } = await supabase
     .from("clients")
     .select("id, ai_enabled")
     .eq("owner_user", userId)
-    .single();
+    .maybeSingle();
+
+  if (error) {
+    console.error("[SETTINGS] getClient error", error);
+  }
 
   return client;
 }
 
-// 🔹 Server Action zum Umschalten
+// --- Server-Action: AI an/aus schalten ---
 export async function toggleAIAction() {
   "use server";
 
-  const supabase = createClients();
+  const supabase = await createServerClientTyped();
   const userId = await getCurrentUserId(supabase);
-           if (!userId) {
-             throw new Error("unauthenticated");
-           }
-  
 
-  const { data: client } = await supabase
+  if (!userId) {
+    redirect("/login");
+  }
+
+  const { data: client, error } = await supabase
     .from("clients")
     .select("id, ai_enabled")
     .eq("owner_user", userId)
-    .single();
+    .maybeSingle();
 
-  if (!client) return;
+  if (error || !client) {
+    console.error("[SETTINGS] toggleAIAction get client error", error);
+    return;
+  }
 
-  await supabase
+  const { error: updErr } = await supabase
     .from("clients")
     .update({ ai_enabled: !client.ai_enabled })
     .eq("id", client.id);
 
-  // Seite neu laden, damit der Status-Text sich aktualisiert
+  if (updErr) {
+    console.error("[SETTINGS] toggleAIAction update error", updErr);
+    return;
+  }
+
+  // Seite neu laden, damit Status sofort aktualisiert wird
   revalidatePath("/dashboard/settings");
 }
 
+// --- Page-Komponente ---
 export default async function SettingsPage() {
   const client = await getClient();
   const aiEnabled = client?.ai_enabled ?? false;
@@ -61,15 +76,19 @@ export default async function SettingsPage() {
       <form action={toggleAIAction}>
         <button
           type="submit"
-          className="px-4 py-2 rounded bg-blue-600 text-white"
+          className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
         >
           {aiEnabled ? "AI deaktivieren" : "AI aktivieren"}
         </button>
       </form>
 
-      <p className="text-gray-200 mt-4">
+      <p className="text-gray-700 mt-4">
         Status:{" "}
-        <span className={aiEnabled ? "text-green-400" : "text-red-400"}>
+        <span
+          className={
+            aiEnabled ? "text-green-600 font-semibold" : "text-red-600 font-semibold"
+          }
+        >
           {aiEnabled ? "Aktiviert" : "Deaktiviert"}
         </span>
       </p>

@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     const { tokens } = await oauth2.getToken({ code, redirect_uri: redirectUri });
 
     // 2) User bestimmen (DEV_USER_ID muss uuid sein)
-    const supabase = createClients();
+    const supabase = await createClients();
       const userId = await getCurrentUserId(supabase);
           if (!userId) {
             return NextResponse.json(

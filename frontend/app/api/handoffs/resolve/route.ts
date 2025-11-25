@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const supabase = createClients();
+  const supabase = await createClients();
 
   try {
     // 1) User bestimmen

@@ -1,36 +1,29 @@
+// frontend/app/dashboard/page.tsx
 import { createClients } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
-import {redirect} from "next/navigation"; 
 
 export default async function DashboardPage() {
-  const supabase = createClients();
+  const supabase = await createClients();
 
-  // 1) eingeloggten User holen
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId(supabase);
   if (!userId) {
-    redirect("/login"); // redirect ist `never`, TS weiß: ab hier immer userId
+    // zur Sicherheit – das Layout fängt das eigentlich schon ab
+    return null;
   }
 
-  // 2) Client zu diesem User holen
   const { data: client, error: clientErr } = await supabase
     .from("clients")
-    .select("id, name")
+    .select("id")
     .eq("owner_user", userId)
     .maybeSingle();
 
-  if (clientErr) {
+  if (clientErr || !client) {
     console.error("client_load_failed", clientErr);
-    redirect("/onboarding");
-  }
-
-  if (!client) {
-    // kein Client → zurück ins Onboarding
-    redirect("/onboarding");
+    return null;
   }
 
   const clientId = client.id;
 
-  // 3) Daten fürs Dashboard – alle gefiltert auf client_id
   const [{ data: calls }, { data: appointments }, { data: handoffs }] =
     await Promise.all([
       supabase
@@ -44,7 +37,7 @@ export default async function DashboardPage() {
         .from("appointments")
         .select("*")
         .eq("client_id", clientId)
-        .order("start_time", { ascending: false })
+        .order("start_at", { ascending: false })
         .limit(10),
 
       supabase
@@ -52,14 +45,15 @@ export default async function DashboardPage() {
         .select("*")
         .eq("client_id", clientId)
         .eq("status", "open")
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .limit(10),
     ]);
 
   return (
     <div className="p-6 space-y-12">
       <h1 className="text-2xl font-semibold">Admin Übersicht</h1>
 
-      {/* ------------------ CALLS ------------------ */}
+      {/* Calls */}
       <section>
         <h2 className="text-xl font-medium mb-2">Letzte Anrufe</h2>
         <table className="w-full border">
@@ -72,7 +66,7 @@ export default async function DashboardPage() {
             </tr>
           </thead>
           <tbody>
-            {calls?.map((c) => (
+            {(calls ?? []).map((c) => (
               <tr key={c.id} className="border-b">
                 <td className="p-2">{c.id}</td>
                 <td className="p-2">{c.from_number}</td>
@@ -84,7 +78,7 @@ export default async function DashboardPage() {
         </table>
       </section>
 
-      {/* ------------------ APPOINTMENTS ------------------ */}
+      {/* Appointments */}
       <section>
         <h2 className="text-xl font-medium mb-2">Gebuchte Termine</h2>
         <table className="w-full border">
@@ -97,7 +91,7 @@ export default async function DashboardPage() {
             </tr>
           </thead>
           <tbody>
-            {appointments?.map((a) => (
+            {(appointments ?? []).map((a) => (
               <tr key={a.id} className="border-b">
                 <td className="p-2">{a.title}</td>
                 <td className="p-2">{a.start_at}</td>
@@ -109,7 +103,7 @@ export default async function DashboardPage() {
         </table>
       </section>
 
-      {/* ------------------ HANDOFFS / LOGS ------------------ */}
+      {/* Handoffs */}
       <section>
         <h2 className="text-xl font-medium mb-2">Offene Weiterleitungen</h2>
         <table className="w-full border">
@@ -122,7 +116,7 @@ export default async function DashboardPage() {
             </tr>
           </thead>
           <tbody>
-            {handoffs?.map((h) => (
+            {(handoffs ?? []).map((h) => (
               <tr key={h.id} className="border-b">
                 <td className="p-2">{h.question}</td>
                 <td className="p-2">{h.intent}</td>

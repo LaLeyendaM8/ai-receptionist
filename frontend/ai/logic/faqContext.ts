@@ -2,7 +2,7 @@
 import { createClients } from "@/lib/supabaseClients";
 
 export async function buildFaqContext(userId: string) {
-  const supabase = createClients();
+  const supabase = await createClients();
 
   const { data: client } = await supabase
     .from("clients")

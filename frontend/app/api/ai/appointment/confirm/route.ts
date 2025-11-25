@@ -62,7 +62,7 @@ async function hasOverlap(supabase: any, clientId: string, startISO: string, end
 
 export async function POST(req: Request) {
   try {
-    const supabase = createClients();
+    const supabase = await createClients();
     const body = await req.json().catch(() => null);
     const draftId: string | undefined = body?.draftId;
 
@@ -116,6 +116,11 @@ export async function POST(req: Request) {
     if (aErr) return NextResponse.json({ error: "db_insert_failed", details: aErr.message }, { status: 500 });
     const appointment = appts![0];
 
+    let googleEventId: string | undefined = undefined;
+    let calendarSynced = false;
+    let calendarError: string | null = null;
+
+    try {
     // Google Event
     const { oauth2 } = await getOAuth2ForUser(userId);
     const calendar = google.calendar({ version: "v3", auth: oauth2 });
@@ -123,28 +128,56 @@ export async function POST(req: Request) {
       calendarId: "primary",
       requestBody: {
         summary: appointment.title,
-        description: "Erstellt durch AI-Rezeptionist",
+        description: "Erstellt durch ReceptaAI",
         start: { dateTime: appointment.start_at, timeZone: "Europe/Berlin" },
         end: { dateTime: appointment.end_at, timeZone: "Europe/Berlin" },
       },
     });
 
     if (ins.data.id) {
+      googleEventId = ins.data.id;
+
       await supabase
         .from("appointments")
         .update({ google_event_id: ins.data.id })
         .eq("id", appointment.id);
-    }
 
+        calendarSynced = true;
+    }
+  } catch (gErr){
+    console.error("[APPOINTMENT CONFIRM] google_insert_failed", gErr);
+    calendarError = gErr instanceof Error ? gErr.message : String(gErr);
+  }
     // Draft weg
     await supabase.from("appointment_drafts").delete().eq("id", draftId);
 
-    return NextResponse.json({
-      status: "created",
-      appointment,
-      googleEventId: ins.data.id ?? undefined,
-      say: `Alles klar – ich habe den Termin für ${appointment.customer_name ?? "Sie"} in unserem Kalender hinterlegt.`,
-    });
+   const start = new Date(appointment.start_at);
+const dateStr = start.toLocaleDateString("de-DE", {
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "Europe/Berlin",
+});
+const timeStr = start.toLocaleTimeString("de-DE", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/Berlin",
+});
+
+return NextResponse.json(
+  {
+    status: "created",
+    appointment,
+    googleEventId,      // <- kommt aus der Variablen, nicht aus "ins"
+    calendarSynced,
+    calendarError,
+    say: `Alles klar – ich habe den Termin für ${
+      appointment.customer_name ?? "Sie"
+    } am ${dateStr} um ${timeStr} eingetragen.`,
+  },
+  { status: 200 }
+);
   } catch (e: any) {
     return NextResponse.json({ error: "confirm_failed", details: e?.message }, { status: 500 });
   }

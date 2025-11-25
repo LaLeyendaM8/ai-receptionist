@@ -1,20 +1,24 @@
-// lib/authServer.ts
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createServerClient } from "./supabaseServer";
+// frontend/lib/authServer.ts
+import type { TypedSupabaseClient } from "./supabaseServer";
 
+/**
+ * Holt die userId aus Supabase-Auth.
+ * Erwartet einen bereits erstellten Supabase-Client.
+ */
 export async function getCurrentUserId(
-  _existingClient?: SupabaseClient
+  supabase: TypedSupabaseClient
 ): Promise<string | null> {
-  // DEV-Modus: hart auf DEV_USER_ID gehen
-  if (process.env.ENABLE_TEST === "true" && process.env.DEV_USER_ID) {
-    return process.env.DEV_USER_ID;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+
+    if (error || !data?.user) {
+      console.warn("[getCurrentUserId] auth.getUser error", error);
+      return null;
+    }
+
+    return data.user.id;
+  } catch (err) {
+    console.error("[getCurrentUserId] unexpected error", err);
+    return null;
   }
-
-  // Produktmodus: echten Supabase-User aus Cookies holen
-  const supabase = _existingClient ?? (await createServerClient());
-
-  const { data, error } = await supabase.auth.getUser();
-
-  if (error || !data?.user) return null;
-  return data.user.id;
 }

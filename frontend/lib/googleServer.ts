@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import { createClients } from "@/lib/supabaseClients";
 
 export async function getOAuth2ForUser(userId: string) {
-  const supabase = createClients();
+  const supabase = await createClients();
   const { data: tok, error } = await supabase
     .from("google_tokens").select("*").eq("user_id", userId).single();
   if (error || !tok) throw new Error("no_tokens");

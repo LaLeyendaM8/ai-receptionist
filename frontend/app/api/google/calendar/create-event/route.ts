@@ -5,7 +5,7 @@ import { getCurrentUserId } from "@/lib/authServer";
 
 export async function POST(req: Request) {
   try {
-    const supabase = createClients();
+    const supabase = await createClients();
 
     const userId = await getCurrentUserId(supabase);
         if (!userId) {

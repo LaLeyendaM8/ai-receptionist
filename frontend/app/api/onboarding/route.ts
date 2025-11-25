@@ -4,10 +4,10 @@ import { createClients } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
 
 export async function POST(req: Request) {
-  const supabase = createClients();
+  const supabase = await createClients();
 
   // 1) User ermitteln – WICHTIG: ohne Parameter
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId(supabase);
   if (!userId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }

@@ -3,7 +3,7 @@ import { createClients } from '@/lib/supabaseClients'
 
 // GET: alle Termine (neueste zuerst)
 export async function GET() {
-  const supabase = createClients()
+  const supabase = await createClients ();
   const { data, error } = await supabase
     .from('appointments')
     .select('*, clients:clients!appointments_client_id_fkey(name, phone)') 
@@ -17,7 +17,7 @@ export async function GET() {
 
 // POST: Termin anlegen
 export async function POST(req: Request) {
-  const supabase = createClients()
+  const supabase = await createClients();
 
   let body: any
   try { body = await req.json() }

@@ -19,7 +19,7 @@ type FaqLLMResponse = {
 };
 
 export async function POST(req: Request) {
-  const supabase = createClients();
+  const supabase = await createClients();
 
   try {
     // 1) User ermitteln

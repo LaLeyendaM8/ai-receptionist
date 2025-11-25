@@ -1,0 +1,123 @@
+3. Offene Punkte für Phase 4 (Umsetzung notwendig – direkt als To-Dos)
+
+Diese Punkte stammen aus realen Tests und müssen im nächsten Schritt umgesetzt werden:
+
+
+🔧 3.1 Appointment-Flow verbessern
+
+Reihenfolge:
+
+Öffnungszeiten prüfen
+
+Dann Service abfragen
+
+Verhindert falsche Dialoge wie:
+„Welchen Service?“ obwohl der Laden geschlossen ist.
+
+
+🧠 3.2 GPT-Receptionist – Feinheiten
+
+Verbesserungen:
+
+Natürlichere Begrüßung und Verabschiedung
+
+Aufleg-Logik implementieren
+
+Loop verhindern („Kann ich noch etwas tun?“ wiederholt)
+
+Besserer Umgang mit unklaren Whisper-Ergebnissen
+→ „Entschuldigung, das habe ich nicht verstanden.“
+
+
+🕒 3.3 Zeit im Dashboard (UTC → Lokal)
+
+Aktuell zeigt Supabase UTC an.
+Im Dashboard z.B.:
+
+13:00 UTC → 14:00 lokal
+
+Fix:
+
+const formatDateTime = (iso: string) =>
+  new Date(iso).toLocaleString("de-DE", {
+    timeZone: "Europe/Berlin",
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+
+🚫 3.4 Staff-Funktion optional machen
+
+Für das MVP:
+
+Staff ist optional
+
+Wenn Staff aktiv → verwende Standard-Öffnungszeiten
+
+Empfehlung für Kunden:
+„Wenn ein Mitarbeiter nicht arbeitet → im Google Calendar als occupied blockieren.“
+
+Echte Schichtpläne kommen später.
+
+
+🧹 3.5 Call-Error Handling
+
+Wenn GPT/TTS abstürzt:
+
+Statt Loop oder Stille:
+→ „Es ist ein Fehler aufgetreten, bitte versuchen Sie es später erneut.“
+
+
+🔒 3.6 DSGVO / Rechtliches (Phase 4 UI)
+
+Datenschutzerklärung
+
+Impressum
+
+Audio-Hinweis beim Call („Dieser Anruf wird verarbeitet…“)
+
+AGB
+
+
+4. Dinge für später (MVP, vor Launch, für Telefon-Testphase)
+
+Diese Punkte gehören in ein eigenes “Telefon-Testing”-Ticket:
+
+
+📞 4.1 Twilio-Nummer → client_id Mapping
+
+Notwendig, damit echte Anrufer (NICHT eingeloggt) funktionieren.
+
+Schritt 1:
+
+Neue Tabelle:
+
+phone_numbers
+- twilio_number
+- client_id
+
+Schritt 2:
+
+In /api/call/handle:
+
+„To“ aus Twilio lesen
+
+client_id anhand der Nummer bestimmen
+
+client_id an die GPT/Appointment/Handoff Routen weitergeben
+
+Erst dann funktionieren reale Calls ohne Login.
+
+
+📅 4.2 Echter Google Test & Realer Anruf
+
+Sobald deployt & Domain live:
+
+Webhook auf echte Domain
+
+Mit deutscher Twilio-Nummer testen
+
+Kalender-Erstellung live prüfen

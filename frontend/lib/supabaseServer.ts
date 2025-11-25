@@ -1,28 +1,29 @@
 // frontend/lib/supabaseServer.ts
+import { createServerClient } from "@supabase/ssr";
+import { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import {
-  createServerClient as createSupabaseServerClientInternal,
-  type CookieOptions,
-} from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type TypedSupabaseClient = SupabaseClient;
 
-export async function createServerClient(): Promise<SupabaseClient> {
-  const cookieStore = await cookies(); // NEXT 14 FIX
+export async function createServerClientTyped() {
+  const cookieStore = await cookies();
 
-  return createSupabaseServerClientInternal(
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        getAll() {
+          return cookieStore.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: "", ...options });
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Kann ignoriert werden – Next setzt hier Grenzen
+          }
         },
       },
     }

@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   const redirectUri = getRedirectUri(req);
   console.log("OAUTH START ▶ REDIRECT URI:", redirectUri);
 
-  const supabase = createClients();
+  const supabase = await createClients();
   const userId = await getCurrentUserId(supabase);
     if (!userId) {
        return NextResponse.json(

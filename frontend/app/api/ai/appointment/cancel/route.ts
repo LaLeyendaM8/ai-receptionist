@@ -7,7 +7,7 @@ export async function POST(req: Request) {
     const { draftId } = await req.json();
     if (!draftId) return NextResponse.json({ error: "missing draftId" }, { status: 400 });
 
-    const supabase = createClients();
+    const supabase = await createClients();
 
     const userId = await getCurrentUserId(supabase);
     if (!userId) {

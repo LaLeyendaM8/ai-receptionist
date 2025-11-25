@@ -5,7 +5,7 @@ import { getCurrentUserId } from "@/lib/authServer";
 import { createClients } from "@/lib/supabaseClients";
 
 export async function POST() {
-  const supabase = createClients();
+  const supabase = await createClients();
       const userId = await getCurrentUserId(supabase);
           if (!userId) {
             return NextResponse.json(

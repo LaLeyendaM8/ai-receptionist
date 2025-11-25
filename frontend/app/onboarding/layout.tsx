@@ -2,6 +2,7 @@
 import { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/authServer";
+import { createClients } from "@/lib/supabaseClients";
 
 export default async function OnboardingLayout({
   children,
@@ -9,7 +10,8 @@ export default async function OnboardingLayout({
   children: ReactNode;
 }) {
   if (process.env.ENABLE_TEST !== "true") {
-    const userId = await getCurrentUserId();
+    const supabase  = await createClients();
+    const userId = await getCurrentUserId(supabase);
 
     if (!userId) {
       redirect("/login");
