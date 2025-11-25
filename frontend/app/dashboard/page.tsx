@@ -1,43 +1,8 @@
 // frontend/app/dashboard/page.tsx
-"use client";
+
 import { createClients } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
-import { useState } from "react";
-
-export function BillingButton() {
-  const [loading, setLoading] = useState(false);
-
-  async function startCheckout() {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-      });
-
-      if (!res.ok) {
-        console.error("checkout_failed", await res.json());
-        return;
-      }
-
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <button
-      onClick={startCheckout}
-      disabled={loading}
-      className="rounded-md bg-blue-600 px-4 py-2 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-    >
-      {loading ? "Weiterleitung zu Stripe..." : "Abo starten"}
-    </button>
-  );
-}
+import { BillingButton } from "./BillingButton";
 
 export default async function DashboardPage() {
   const supabase = await createClients();
@@ -89,7 +54,11 @@ export default async function DashboardPage() {
   return (
     <div className="p-6 space-y-12">
       <h1 className="text-2xl font-semibold">Admin Übersicht</h1>
-
+      {/*Stripe-Button*/}
+      <section>
+        <h2 className="text-xl font-medium mb-2">Abonnement</h2>
+        <BillingButton />
+      </section>
       {/* Calls */}
       <section>
         <h2 className="text-xl font-medium mb-2">Letzte Anrufe</h2>
