@@ -38,7 +38,7 @@ export async function POST() {
     // 2) Checkout-Session bauen
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      customer_creation: "always",
+      
       // Setup Fee (one-time) + monatliches Abo
       line_items: [
         {
