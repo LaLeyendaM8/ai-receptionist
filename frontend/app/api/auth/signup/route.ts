@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   const { data: subscription, error: subErr } = await supabase
     .from("stripe_subscriptions")
     .select("id, email, status, user_id")
-    .eq("session_id", sessionId)
+    .eq("stripe_session_id", sessionId)
     .maybeSingle();
 
   if (subErr) {
