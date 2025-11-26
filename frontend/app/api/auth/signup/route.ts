@@ -25,6 +25,16 @@ export async function POST(req: Request) {
   const supabase = await createClients();
 
   // 1) Stripe-Subscription zu dieser Checkout-Session finden
+
+  console.log("[SIGNUP] sessionId from body:", sessionId);
+  const {data: lastSubs } = await supabase
+   .from("stripe_subscriptions")
+   .select("id, stripe_session_id, email, status, user_id, created_at")
+   .order("created_at", {ascending: false})
+   .limit(5);
+  console.log("[SIGNUP] last stripe_subscriptions rows:", lastSubs);
+
+  
   const { data: subscription, error: subErr } = await supabase
     .from("stripe_subscriptions")
     .select("id, email, status, user_id, stripe_session_id, stripe_customer_id, stripe_subscription_id, client_id")
