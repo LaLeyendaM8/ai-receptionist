@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   // 1) Stripe-Subscription zu dieser Checkout-Session finden
   const { data: subscription, error: subErr } = await supabase
     .from("stripe_subscriptions")
-    .select("id, email, status, user_id")
+    .select("id, email, status, user_id, stripe_session_id, stripe_customer_id, stripe_subscription_id, client_id")
     .eq("stripe_session_id", sessionId)
     .maybeSingle();
 
