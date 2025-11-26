@@ -3,9 +3,16 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+// ⬇️ Ganz wichtig: KEIN revalidatePath, KEIN revalidate als Funktion
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 0; // diese Page wird nie statisch gecacht
 
+type SignupError =
+  | "subscription_not_found"
+  | "email_mismatch"
+  | "subscription_already_linked"
+  | "user_create_failed"
+  | "subscription_link_failed";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -18,19 +25,20 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ❌ Kein gültiger Checkout in der URL
+  // ❗ Wenn keine Session-ID in der URL ist, Hinweis anzeigen
   if (!sessionId) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow p-6 space-y-4">
-          <h1 className="text-xl font-semibold text-gray-900">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow px-6 py-8 space-y-4">
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">
             Kein aktiver Checkout gefunden
           </h1>
           <p className="text-sm text-gray-600">
-            Diese Seite ist nur für neue Kund:innen nach einem erfolgreichen Kauf
-            über Stripe gedacht. Wir konnten keine gültige <code>session_id</code>{" "}
-            in der URL finden.
+            Diese Seite ist nur für neue Kund:innen nach einem erfolgreichen
+            Kauf über Stripe gedacht. Wir konnten keine gültige{" "}
+            <code>session_id</code> in der URL finden.
           </p>
+
           <button
             onClick={() => router.push("/")}
             className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -44,21 +52,22 @@ export default function SignupPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    setLoading(true);
     setError(null);
 
     if (!email || !password) {
       setError("Bitte E-Mail und Passwort eingeben.");
+      setLoading(false);
       return;
     }
 
     if (password !== passwordRepeat) {
       setError("Die Passwörter stimmen nicht überein.");
+      setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
-
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: {
@@ -71,27 +80,29 @@ export default function SignupPage() {
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: SignupError;
+      };
 
       if (!res.ok) {
-        // Fehlercodes aus der Route hübsch übersetzen
-        switch (data?.error) {
+        switch (data.error) {
           case "subscription_not_found":
             setError("Zu dieser Session wurde kein Stripe-Abo gefunden.");
             break;
           case "email_mismatch":
             setError(
-              "Die E-Mail entspricht nicht der E-Mail aus dem Stripe-Kauf. Bitte die gleiche E-Mail verwenden wie beim Bezahlen."
+              "Die E-Mail entspricht nicht der E-Mail aus dem Stripe-Kauf. Bitte die gleiche E-Mail verwenden."
             );
             break;
           case "subscription_already_linked":
-            setError(
-              "Dieses Stripe-Abo ist bereits mit einem Account verknüpft."
-            );
+            setError("Dieses Stripe-Abo ist bereits mit einem Account verknüpft.");
             break;
           case "user_create_failed":
+            setError("Account konnte nicht erstellt werden. Bitte später noch einmal versuchen.");
+            break;
+          case "subscription_link_failed":
             setError(
-              "Account konnte nicht erstellt werden. Bitte später noch einmal versuchen."
+              "Der Stripe-Eintrag konnte nicht mit deinem Account verknüpft werden. Bitte später noch einmal versuchen."
             );
             break;
           default:
@@ -100,10 +111,10 @@ export default function SignupPage() {
         return;
       }
 
-      // ✅ Signup erfolgreich – weiter ins Onboarding
+      // ✅ Signup erfolgreich – direkt ins Onboarding weiterleiten
       router.push("/onboarding");
     } catch (err) {
-      console.error(err);
+      console.error("signup_unexpected_error", err);
       setError("Unerwarteter Fehler. Bitte später noch einmal versuchen.");
     } finally {
       setLoading(false);
@@ -112,7 +123,7 @@ export default function SignupPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow p-6 space-y-6">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow px-6 py-8 space-y-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-gray-900">
             ReceptaAI Konto erstellen
@@ -122,6 +133,12 @@ export default function SignupPage() {
             Login für das Dashboard an.
           </p>
         </div>
+
+        {error && (
+          <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
@@ -148,8 +165,8 @@ export default function SignupPage() {
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
               minLength={6}
+              required
             />
           </div>
 
@@ -163,27 +180,18 @@ export default function SignupPage() {
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={passwordRepeat}
               onChange={(e) => setPasswordRepeat(e.target.value)}
-              required
               minLength={6}
+              required
             />
           </div>
-
-          {error && (
-            <p className="text-sm text-red-600 whitespace-pre-line">{error}</p>
-          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
           >
-            {loading ? "Account wird erstellt..." : "Account erstellen"}
+            {loading ? "Account wird erstellt..." : "Konto erstellen & weiter"}
           </button>
-
-          <p className="text-xs text-gray-500">
-            Hinweis: Dieses Signup funktioniert nur direkt nach einem
-            erfolgreichen Stripe-Checkout.
-          </p>
         </form>
       </div>
     </main>
