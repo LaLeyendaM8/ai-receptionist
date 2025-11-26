@@ -9,7 +9,7 @@ export const runtime = "nodejs"; // wichtig für raw body
 
 export async function POST(req: Request) {
   const body = await req.text();
-  const sig = (await headers()).get("stripe-signature");
+  const sig = req.headers.get("stripe-signature");
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!sig || !webhookSecret) {
