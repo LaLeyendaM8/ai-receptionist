@@ -90,6 +90,53 @@ export async function POST(req: Request) {
       clientId = inserted.id;
     }
 
+    // 3c) Stripe-Abo mit diesem Client verknüpfen (falls vorhanden)
+    try {
+      // Passenden Stripe-Eintrag zu diesem User holen,
+      // der noch keinen Client zugeordnet hat
+      const { data: stripeRow, error: stripeSelectErr } = await supabase
+        .from("stripe_subscriptions") // ggf. Tabellennamen anpassen
+        .select(
+          "id, stripe_customer_id, stripe_subscription_id, plan, status"
+        )
+        .eq("user_id", userId)
+        .is("client_id", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (stripeSelectErr) {
+        console.error("stripe_link_select_failed", stripeSelectErr);
+      } else if (stripeRow) {
+        // Stripe-Daten auf den Client schreiben
+        const { error: clientStripeErr } = await supabase
+          .from("clients")
+          .update({
+            stripe_customer_id: stripeRow.stripe_customer_id,
+            stripe_subscription_id: stripeRow.stripe_subscription_id,
+            stripe_status: stripeRow.status,
+            stripe_plan: stripeRow.plan,
+          })
+          .eq("id", clientId);
+
+        if (clientStripeErr) {
+          console.error("stripe_link_client_update_failed", clientStripeErr);
+        } else {
+          // Stripe-Eintrag mit dem Client verknüpfen
+          const { error: stripeUpdateErr } = await supabase
+            .from("stripe_subscriptions")
+            .update({ client_id: clientId })
+            .eq("id", stripeRow.id);
+
+          if (stripeUpdateErr) {
+            console.error("stripe_link_customer_update_failed", stripeUpdateErr);
+          }
+        }
+      }
+    } catch (stripeLinkUnexpected) {
+      console.error("stripe_link_unexpected_error", stripeLinkUnexpected);
+    }
+
     // 4) business_hours: alte löschen, neue einfügen
     await supabase.from("business_hours").delete().eq("client_id", clientId);
 
