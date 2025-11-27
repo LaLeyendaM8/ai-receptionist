@@ -1,6 +1,7 @@
 // app/api/gpt-receptionist/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { createServiceClient } from "@/lib/supabaseClients";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,19 +20,46 @@ export async function POST(req: Request) {
   try {
     const { text } = await req.json();
 
+    // 1) Profil laden (MVP: neuestes ai_profile)
+    let profileText = "";
+    try {
+      const supabase = createServiceClient();
+      const { data: client, error: profileErr } = await supabase
+        .from("clients")
+        .select("ai_profile")
+        .not("ai_profile", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!profileErr && client?.ai_profile) {
+        profileText = client.ai_profile as string;
+      } else if (profileErr) {
+        console.error("[BRAIN] profile load error", profileErr);
+      }
+    } catch (e) {
+      console.error("[BRAIN] profile load unexpected", e);
+    }
+
+    // 2) System-Prompt inkl. Profil
     const system = `
 Du bist eine freundliche Rezeptionistin.
-Antworte *ausschließlich* als gültiges json-objekt (kleingeschrieben), ohne zusätzlichen Text.
-Schema:
-{
-  "intent": "small_talk | appointment_booking | opening_hours | pricing | transfer | other",
-  "reply": "string (max. 1–2 Sätze, natürlich und hilfreich)",
-  "meta": { "language": "de", "confidence": number }
-}
-Wenn Terminwunsch erkannt: intent="appointment_booking".
+
+${
+  profileText
+    ? `UNTERNEHMENSPROFIL (nur intern für dich, nicht vorlesen):
+${profileText}
+
+`
+    : ""
+}Antworten:
+- Sprich die Anrufer:innen höflich und natürlich auf Deutsch an.
+- Halte dich an Öffnungszeiten, Dienstleistungen, Preise und FAQs aus dem Profil.
+- Wenn du etwas nicht sicher weißt, sag ehrlich, dass du es nicht weißt.
+- Gib nur Informationen, die zu diesem Unternehmen passen.
 `;
 
-    // WICHTIG: KEIN response_format hier!
+    // 3) OpenAI-Call wie bisher
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.2,
@@ -40,14 +68,13 @@ Wenn Terminwunsch erkannt: intent="appointment_booking".
         {
           role: "user",
           content:
-            `Gib nur ein gültiges json-objekt zurück, ohne Markdown/Erklärung.\n` +
+            'Gib nur ein gültiges json-objekt zurück, ohne Markdown/Erklärung.\n' +
             `Nutzeranfrage: """${text}"""`,
         },
       ],
     });
 
     const content = resp.choices[0]?.message?.content ?? "{}";
-
     // Robust parsen
     let brain: any;
     try {

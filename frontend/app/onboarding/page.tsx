@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import GoogleCalendarConnect from "./GoogleCalendarConnect";
 
 type ClientForm = {
   name: string;
@@ -10,6 +11,7 @@ type ClientForm = {
   email: string;
   notification_email: string;
   timezone: string;
+  industry: string;
 };
 
 type HourForm = {
@@ -49,6 +51,19 @@ const WEEKDAYS = [
   "Samstag",
 ];
 
+const INDUSTRIES = [
+  "Friseur / Salon",
+  "Kosmetik / Beauty",
+  "Arztpraxis",
+  "Zahnarzt",
+  "Physiotherapie",
+  "Coaching / Beratung",
+  "Auto-Werkstatt",
+  "Fitnessstudio",
+  "Restaurant / Café",
+  "Sonstige Dienstleistung",
+];
+
 function timeToMinutes(t: string): number | null {
   if (!t) return null;
   const [hh, mm] = t.split(":").map(Number);
@@ -65,6 +80,7 @@ export default function OnboardingPage() {
     email: "",
     notification_email: "",
     timezone: "Europe/Berlin",
+    industry:"",
   });
 
   const [hours, setHours] = useState<HourForm[]>(
@@ -103,7 +119,10 @@ export default function OnboardingPage() {
     setSuccess(false);
 
     const payload = {
-      client,
+      client: {
+        ...client,
+        industry: client.industry.trim(),
+      },
       hours: hours.map((h) => ({
         weekday: h.weekday,
         open_min: h.closed ? null : timeToMinutes(h.open),
@@ -148,6 +167,11 @@ export default function OnboardingPage() {
         setError(data.error || "Fehler beim Speichern.");
       } else {
         setSuccess(true);
+        try {
+          await fetch("/api/ai/train", { method: "POST" });
+        } catch (e){
+          console.error("AI train failed (wird ignoriert)", e);
+        }
         // nach Onboarding ins Admin-Dashboard
         router.push("/dashboard");
       }
@@ -219,8 +243,38 @@ export default function OnboardingPage() {
                 }
               />
             </div>
+            <div>
+  <label className="mb-1 block text-sm">Branche</label>
+  <select
+    className="w-full rounded-md border border-gray-700 bg-black/40 px-3 py-2 text-sm"
+    value={client.industry}
+    onChange={(e) =>
+      setClient((c) => ({ ...c, industry: e.target.value }))
+    }
+    required
+  >
+    <option value="">Bitte Branche auswählen</option>
+    {INDUSTRIES.map((b) => (
+      <option key={b} value={b}>
+        {b}
+      </option>
+    ))}
+  </select>
+</div>
           </div>
         </section>
+
+       {/* Google-Kalender */}
+      <section className="space-y-3 rounded-lg border border-dashed border-gray-700 bg-gray-900/40 p-4">
+        <h2 className="text-xl font-semibold">Google-Kalender verbinden</h2>
+        <p className="text-sm text-gray-400">
+          Optional, aber empfohlen: Verbinde deinen Google-Kalender, damit
+          ReceptaAI automatisch Termine anlegen und blockierte Zeiten
+          berücksichtigen kann.
+        </p>
+
+        <GoogleCalendarConnect />
+      </section>
 
         {/* Öffnungszeiten */}
         <section className="space-y-4 rounded-lg border border-gray-700 bg-gray-900/40 p-4">

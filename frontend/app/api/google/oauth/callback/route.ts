@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     }
 
     // 4) zurück zur Testseite
-    return NextResponse.redirect(`${getBaseUrl(req)}/calendar-test?connected=1`);
+    return NextResponse.redirect(`${getBaseUrl(req)}/onboarding?calendar_connected=1`);
   } catch (e: any) {
     console.error("oauth callback error:", e?.response?.data || e);
     return NextResponse.json({ error: "callback_failed" }, { status: 400 });
