@@ -1,10 +1,11 @@
 // app/api/onboarding/route.ts
 import { NextResponse } from "next/server";
-import { createClients } from "@/lib/supabaseClients";
+import { createClients, createServiceClient } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
 
 export async function POST(req: Request) {
   const supabase = await createClients();
+  const serviceSupabase = createServiceClient();
 
   // 1) User ermitteln – WICHTIG: ohne Parameter
   const userId = await getCurrentUserId(supabase);
@@ -94,7 +95,7 @@ export async function POST(req: Request) {
     try {
       // Passenden Stripe-Eintrag zu diesem User holen,
       // der noch keinen Client zugeordnet hat
-      const { data: stripeRow, error: stripeSelectErr } = await supabase
+      const { data: stripeRow, error: stripeSelectErr } = await serviceSupabase
         .from("stripe_subscriptions") // ggf. Tabellennamen anpassen
         .select(
           "id, stripe_customer_id, stripe_subscription_id, plan, status"
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
         console.error("stripe_link_select_failed", stripeSelectErr);
       } else if (stripeRow) {
         // Stripe-Daten auf den Client schreiben
-        const { error: clientStripeErr } = await supabase
+        const { error: clientStripeErr } = await serviceSupabase
           .from("clients")
           .update({
             stripe_customer_id: stripeRow.stripe_customer_id,
@@ -123,7 +124,7 @@ export async function POST(req: Request) {
           console.error("stripe_link_client_update_failed", clientStripeErr);
         } else {
           // Stripe-Eintrag mit dem Client verknüpfen
-          const { error: stripeUpdateErr } = await supabase
+          const { error: stripeUpdateErr } = await serviceSupabase
             .from("stripe_subscriptions")
             .update({ client_id: clientId })
             .eq("id", stripeRow.id);
