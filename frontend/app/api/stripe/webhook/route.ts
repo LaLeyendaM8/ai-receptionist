@@ -46,9 +46,7 @@ export async function POST(req: Request) {
 
         // Für MVP: alles "starter"
         const plan = "starter";
-        const status =
-          (session.status as string | null) ||
-          (subscriptionId ? "active" : "incomplete");
+        const status = subscriptionId ? "active" : "incomplete";
 
         console.log("stripe_checkout_completed_payload", {
           sessionId,
