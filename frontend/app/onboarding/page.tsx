@@ -1,4 +1,4 @@
-// app/onboarding/page.tsx
+// frontend/app/onboarding/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -24,7 +24,7 @@ type HourForm = {
 type ServiceForm = {
   name: string;
   durationMin: number;
-  price: number; // Euro
+  price: number;
   active: boolean;
 };
 
@@ -64,6 +64,7 @@ const INDUSTRIES = [
   "Sonstige Dienstleistung",
 ];
 
+// Hilfsfunktion: "HH:MM" -> Minuten
 function timeToMinutes(t: string): number | null {
   if (!t) return null;
   const [hh, mm] = t.split(":").map(Number);
@@ -74,22 +75,24 @@ function timeToMinutes(t: string): number | null {
 export default function OnboardingPage() {
   const router = useRouter();
 
+  // --- State ---
+
   const [client, setClient] = useState<ClientForm>({
     name: "",
     phone: "",
     email: "",
     notification_email: "",
     timezone: "Europe/Berlin",
-    industry:"",
+    industry: "",
   });
 
   const [hours, setHours] = useState<HourForm[]>(
-    Array.from({ length: 7 }).map((_, i) => ({
+    Array.from({ length: 7 }, (_, i) => ({
       weekday: i,
       open: "09:00",
       close: "18:00",
       closed: i === 0, // Sonntag zu
-    })),
+    }))
   );
 
   const [services, setServices] = useState<ServiceForm[]>([
@@ -112,6 +115,8 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  // --- Submit ---
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -127,7 +132,7 @@ export default function OnboardingPage() {
         weekday: h.weekday,
         open_min: h.closed ? null : timeToMinutes(h.open),
         close_min: h.closed ? null : timeToMinutes(h.close),
-        is_closed: h.closed,
+        closed: h.closed,
       })),
       services: services
         .filter((s) => s.name.trim())
@@ -161,420 +166,564 @@ export default function OnboardingPage() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(data.error || "Fehler beim Speichern.");
-      } else {
-        setSuccess(true);
-        try {
-          await fetch("/api/ai/train", { method: "POST" });
-        } catch (e){
-          console.error("AI train failed (wird ignoriert)", e);
-        }
-        // nach Onboarding ins Admin-Dashboard
-        router.push("/dashboard");
+        setError(data?.error ?? "Fehler beim Speichern.");
+        return;
       }
+
+      setSuccess(true);
+
+      // Optional: AI-Training anstoßen (Fehler hier ignorieren)
+      try {
+        await fetch("/api/ai/train", { method: "POST" });
+      } catch (err) {
+        console.error("AI train failed (ignored)", err);
+      }
+
+      router.push("/dashboard");
     } catch (err: any) {
-      setError(err?.message || "Unbekannter Fehler beim Speichern.");
+      console.error(err);
+      setError(
+        err?.message ?? "Unbekannter Fehler beim Speichern. Bitte später erneut versuchen."
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  // --- Helper für Änderungen ---
+
+  function updateHour(
+    index: number,
+    patch: Partial<HourForm>
+  ) {
+    setHours((prev) =>
+      prev.map((h, i) => (i === index ? { ...h, ...patch } : h))
+    );
+  }
+
+  function updateService(index: number, patch: Partial<ServiceForm>) {
+    setServices((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, ...patch } : s))
+    );
+  }
+
+  function updateStaff(index: number, patch: Partial<StaffForm>) {
+    setStaff((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, ...patch } : s))
+    );
+  }
+
+  function updateFaq(index: number, patch: Partial<FaqForm>) {
+    setFaqs((prev) =>
+      prev.map((f, i) => (i === index ? { ...f, ...patch } : f))
+    );
+  }
+
+  // --- UI ---
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold">Onboarding</h1>
-      <p className="mb-8 text-sm text-gray-400">
-        Trage hier einmalig deine Firmendaten ein. Die AI nutzt diese Infos für
-        Termine, FAQs und Weiterleitungen.
-      </p>
+    <div className="min-h-screen bg-[#F8FAFC] px-4 py-10">
+      <div className="mx-auto w-full max-w-5xl">
+        {/* Header */}
+        <header className="mb-8">
+          <p className="text-xs uppercase tracking-wide text-slate-400">
+            Onboarding
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-900">
+            Willkommen bei ReceptaAI
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Trage hier einmalig deine Firmendaten ein. Die AI nutzt diese Infos
+            für Terminbuchungen, Öffnungszeiten, FAQs und Weiterleitungen.
+          </p>
+        </header>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Firmendaten */}
-        <section className="space-y-4 rounded-lg border border-gray-700 bg-gray-900/40 p-4">
-          <h2 className="text-xl font-semibold">Firmendaten</h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm">Name / Salon</label>
-              <input
-                className="w-full rounded border border-gray-700 bg-black/40 px-3 py-2 text-sm"
-                value={client.name}
-                onChange={(e) =>
-                  setClient((c) => ({ ...c, name: e.target.value }))
-                }
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm">Telefon</label>
-              <input
-                className="w-full rounded border border-gray-700 bg-black/40 px-3 py-2 text-sm"
-                value={client.phone}
-                onChange={(e) =>
-                  setClient((c) => ({ ...c, phone: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm">E-Mail (öffentlich)</label>
-              <input
-                type="email"
-                className="w-full rounded border border-gray-700 bg-black/40 px-3 py-2 text-sm"
-                value={client.email}
-                onChange={(e) =>
-                  setClient((c) => ({ ...c, email: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm">
-                Notification-E-Mail (Handoffs)
-              </label>
-              <input
-                type="email"
-                className="w-full rounded border border-gray-700 bg-black/40 px-3 py-2 text-sm"
-                value={client.notification_email}
-                onChange={(e) =>
-                  setClient((c) => ({
-                    ...c,
-                    notification_email: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div>
-  <label className="mb-1 block text-sm">Branche</label>
-  <select
-    className="w-full rounded-md border border-gray-700 bg-black/40 px-3 py-2 text-sm"
-    value={client.industry}
-    onChange={(e) =>
-      setClient((c) => ({ ...c, industry: e.target.value }))
-    }
-    required
-  >
-    <option value="">Bitte Branche auswählen</option>
-    {INDUSTRIES.map((b) => (
-      <option key={b} value={b}>
-        {b}
-      </option>
-    ))}
-  </select>
-</div>
-          </div>
-        </section>
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
+          {/* Firmendaten */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Firmendaten
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Basisinformationen, die in der Begrüßung und bei Terminbestätigungen
+              verwendet werden.
+            </p>
 
-       {/* Google-Kalender */}
-      <section className="space-y-3 rounded-lg border border-dashed border-gray-700 bg-gray-900/40 p-4">
-        <h2 className="text-xl font-semibold">Google-Kalender verbinden</h2>
-        <p className="text-sm text-gray-400">
-          Optional, aber empfohlen: Verbinde deinen Google-Kalender, damit
-          ReceptaAI automatisch Termine anlegen und blockierte Zeiten
-          berücksichtigen kann.
-        </p>
-
-        <GoogleCalendarConnect />
-      </section>
-
-        {/* Öffnungszeiten */}
-        <section className="space-y-4 rounded-lg border border-gray-700 bg-gray-900/40 p-4">
-          <h2 className="text-xl font-semibold">Öffnungszeiten</h2>
-          <div className="space-y-2">
-            {hours.map((h, idx) => (
-              <div
-                key={h.weekday}
-                className="grid items-center gap-3 md:grid-cols-[120px,120px,120px,auto]"
-              >
-                <span className="text-sm">{WEEKDAYS[h.weekday]}</span>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">
+                  Name / Salon
+                </label>
                 <input
-                  type="time"
-                  disabled={h.closed}
-                  className="rounded border border-gray-700 bg-black/40 px-2 py-1 text-sm"
-                  value={h.open}
+                  type="text"
+                  value={client.name}
                   onChange={(e) =>
-                    setHours((rows) => {
-                      const copy = [...rows];
-                      copy[idx] = { ...copy[idx], open: e.target.value };
-                      return copy;
-                    })
+                    setClient((c) => ({ ...c, name: e.target.value }))
                   }
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-0 focus:border-[#3B82F6]"
+                  required
                 />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">
+                  Telefon
+                </label>
                 <input
-                  type="time"
-                  disabled={h.closed}
-                  className="rounded border border-gray-700 bg-black/40 px-2 py-1 text-sm"
-                  value={h.close}
+                  type="tel"
+                  value={client.phone}
                   onChange={(e) =>
-                    setHours((rows) => {
-                      const copy = [...rows];
-                      copy[idx] = { ...copy[idx], close: e.target.value };
-                      return copy;
-                    })
+                    setClient((c) => ({ ...c, phone: e.target.value }))
                   }
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-0 focus:border-[#3B82F6]"
                 />
-                <label className="flex items-center gap-2 text-xs">
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">
+                  E-Mail (öffentlich)
+                </label>
+                <input
+                  type="email"
+                  value={client.email}
+                  onChange={(e) =>
+                    setClient((c) => ({ ...c, email: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-0 focus:border-[#3B82F6]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">
+                  Notification-E-Mail (Handoffs)
+                </label>
+                <input
+                  type="email"
+                  value={client.notification_email}
+                  onChange={(e) =>
+                    setClient((c) => ({
+                      ...c,
+                      notification_email: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-0 focus:border-[#3B82F6]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">
+                  Branche
+                </label>
+                <select
+                  value={client.industry}
+                  onChange={(e) =>
+                    setClient((c) => ({ ...c, industry: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-0 focus:border-[#3B82F6]"
+                  required
+                >
+                  <option value="">Bitte Branche auswählen</option>
+                  {INDUSTRIES.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">
+                  Zeitzone
+                </label>
+                <input
+                  type="text"
+                  value={client.timezone}
+                  onChange={(e) =>
+                    setClient((c) => ({ ...c, timezone: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none ring-0 focus:border-[#3B82F6]"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Google Kalender */}
+          <GoogleCalendarConnect />
+
+          {/* Öffnungszeiten */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Öffnungszeiten
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Diese Zeiten nutzt die AI, um verfügbare Termine zu finden.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              {hours.map((h, idx) => (
+                <div
+                  key={h.weekday}
+                  className="grid items-center gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.3fr)_auto]"
+                >
+                  <span className="text-sm text-slate-600">
+                    {WEEKDAYS[h.weekday]}
+                  </span>
+
                   <input
-                    type="checkbox"
-                    checked={h.closed}
+                    type="time"
+                    value={h.open}
+                    disabled={h.closed}
                     onChange={(e) =>
-                      setHours((rows) => {
-                        const copy = [...rows];
-                        copy[idx] = { ...copy[idx], closed: e.target.checked };
-                        return copy;
+                      updateHour(idx, { open: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6] disabled:cursor-not-allowed disabled:bg-slate-100"
+                  />
+
+                  <input
+                    type="time"
+                    value={h.close}
+                    disabled={h.closed}
+                    onChange={(e) =>
+                      updateHour(idx, { close: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6] disabled:cursor-not-allowed disabled:bg-slate-100"
+                  />
+
+                  <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={h.closed}
+                      onChange={(e) =>
+                        updateHour(idx, { closed: e.target.checked })
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
+                    />
+                    Geschlossen
+                  </label>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Services */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Services
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Leistungen, die für Terminbuchungen zur Verfügung stehen.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setServices((prev) => [
+                    ...prev,
+                    { name: "", durationMin: 30, price: 0, active: true },
+                  ])
+                }
+                className="text-sm font-medium text-[#3B82F6] hover:underline"
+              >
+                + Service hinzufügen
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {services.map((s, idx) => (
+                <div
+                  key={idx}
+                  className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                >
+                  <input
+                    type="text"
+                    placeholder="z.B. Beratung"
+                    value={s.name}
+                    onChange={(e) =>
+                      updateService(idx, { name: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+                  />
+                  <input
+                    type="number"
+                    min={5}
+                    step={5}
+                    placeholder="Dauer (Min.)"
+                    value={s.durationMin}
+                    onChange={(e) =>
+                      updateService(idx, {
+                        durationMin: Number(e.target.value) || 0,
                       })
                     }
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
                   />
-                  geschlossen
-                </label>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Services */}
-        <section className="space-y-4 rounded-lg border border-gray-700 bg-gray-900/40 p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Leistungen</h2>
-            <button
-              type="button"
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold"
-              onClick={() =>
-                setServices((rows) => [
-                  ...rows,
-                  { name: "", durationMin: 30, price: 30, active: true },
-                ])
-              }
-            >
-              + Leistung
-            </button>
-          </div>
-          <div className="space-y-3">
-            {services.map((s, idx) => (
-              <div
-                key={idx}
-                className="grid gap-3 md:grid-cols-[2fr,1fr,1fr,auto]"
-              >
-                <input
-                  placeholder="Name (z.B. Haarschnitt)"
-                  className="rounded border border-gray-700 bg-black/40 px-2 py-1 text-sm"
-                  value={s.name}
-                  onChange={(e) =>
-                    setServices((rows) => {
-                      const copy = [...rows];
-                      copy[idx] = { ...copy[idx], name: e.target.value };
-                      return copy;
-                    })
-                  }
-                />
-                <input
-                  type="number"
-                  min={5}
-                  className="rounded border border-gray-700 bg-black/40 px-2 py-1 text-sm"
-                  value={s.durationMin}
-                  onChange={(e) =>
-                    setServices((rows) => {
-                      const copy = [...rows];
-                      copy[idx] = {
-                        ...copy[idx],
-                        durationMin: Number(e.target.value),
-                      };
-                      return copy;
-                    })
-                  }
-                />
-                <input
-                  type="number"
-                  min={0}
-                  step="0.5"
-                  className="rounded border border-gray-700 bg-black/40 px-2 py-1 text-sm"
-                  value={s.price}
-                  onChange={(e) =>
-                    setServices((rows) => {
-                      const copy = [...rows];
-                      copy[idx] = { ...copy[idx], price: Number(e.target.value) };
-                      return copy;
-                    })
-                  }
-                />
-                <button
-                  type="button"
-                  className="text-xs text-red-400"
-                  onClick={() =>
-                    setServices((rows) => rows.filter((_, i) => i !== idx))
-                  }
-                >
-                  Entfernen
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Staff */}
-        <section className="space-y-4 rounded-lg border border-gray-700 bg-gray-900/40 p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Mitarbeiter</h2>
-            <button
-              type="button"
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold"
-              onClick={() =>
-                setStaff((rows) => [
-                  ...rows,
-                  {
-                    name: "",
-                    calendarId: "",
-                    isDefault: false,
-                    active: true,
-                  },
-                ])
-              }
-            >
-              + Mitarbeiter
-            </button>
-          </div>
-          <p className="text-xs text-gray-400">
-            Für MVP reicht ein Kalender. Wenn du mehrere Mitarbeiter hast, trage
-            sie hier ein – die AI kann später gezielt bei einzelnen buchen.
-          </p>
-          <div className="space-y-3">
-            {staff.map((st, idx) => (
-              <div
-                key={idx}
-                className="grid gap-3 md:grid-cols-[2fr,2fr,auto,auto]"
-              >
-                <input
-                  placeholder="Name (z.B. Ali)"
-                  className="rounded border border-gray-700 bg-black/40 px-2 py-1 text-sm"
-                  value={st.name}
-                  onChange={(e) =>
-                    setStaff((rows) => {
-                      const copy = [...rows];
-                      copy[idx] = { ...copy[idx], name: e.target.value };
-                      return copy;
-                    })
-                  }
-                />
-                <input
-                  placeholder="Google-Kalender-ID (optional)"
-                  className="rounded border border-gray-700 bg-black/40 px-2 py-1 text-sm"
-                  value={st.calendarId}
-                  onChange={(e) =>
-                    setStaff((rows) => {
-                      const copy = [...rows];
-                      copy[idx] = { ...copy[idx], calendarId: e.target.value };
-                      return copy;
-                    })
-                  }
-                />
-                <label className="flex items-center gap-2 text-xs">
                   <input
-                    type="checkbox"
-                    checked={st.isDefault}
+                    type="number"
+                    min={0}
+                    step={1}
+                    placeholder="Preis (€)"
+                    value={s.price}
                     onChange={(e) =>
-                      setStaff((rows) =>
-                        rows.map((row, i) => ({
-                          ...row,
-                          isDefault: i === idx ? e.target.checked : false,
-                        })),
-                      )
+                      updateService(idx, {
+                        price: Number(e.target.value) || 0,
+                      })
                     }
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
                   />
-                  Standard
-                </label>
-                <button
-                  type="button"
-                  className="text-xs text-red-400"
-                  onClick={() =>
-                    setStaff((rows) => rows.filter((_, i) => i !== idx))
-                  }
-                >
-                  Entfernen
-                </button>
+
+                  <div className="flex items-center justify-end gap-3">
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={s.active}
+                        onChange={(e) =>
+                          updateService(idx, { active: e.target.checked })
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
+                      />
+                      Aktiv
+                    </label>
+                    {services.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setServices((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                        className="text-xs text-slate-400 hover:text-rose-500"
+                      >
+                        Entfernen
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Mitarbeiter */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Mitarbeiter & Kalender
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Ordne interne Kalender einzelnen Mitarbeitenden zu.
+                </p>
               </div>
-            ))}
-          </div>
-        </section>
+              <button
+                type="button"
+                onClick={() =>
+                  setStaff((prev) => [
+                    ...prev,
+                    {
+                      name: "",
+                      calendarId: "",
+                      isDefault: false,
+                      active: true,
+                    },
+                  ])
+                }
+                className="text-sm font-medium text-[#3B82F6] hover:underline"
+              >
+                + Mitarbeiter hinzufügen
+              </button>
+            </div>
 
-        {/* FAQs */}
-        <section className="space-y-4 rounded-lg border border-gray-700 bg-gray-900/40 p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">FAQs</h2>
-            <button
-              type="button"
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold"
-              onClick={() =>
-                setFaqs((rows) => [
-                  ...rows,
-                  { question: "", answer: "", active: true },
-                ])
-              }
-            >
-              + FAQ
-            </button>
-          </div>
-          <div className="space-y-3">
-            {faqs.map((f, idx) => (
-              <div key={idx} className="space-y-2">
-                <input
-                  placeholder="Frage"
-                  className="w-full rounded border border-gray-700 bg-black/40 px-2 py-1 text-sm"
-                  value={f.question}
-                  onChange={(e) =>
-                    setFaqs((rows) => {
-                      const copy = [...rows];
-                      copy[idx] = { ...copy[idx], question: e.target.value };
-                      return copy;
-                    })
-                  }
-                />
-                <textarea
-                  placeholder="Antwort"
-                  className="w-full rounded border border-gray-700 bg-black/40 px-2 py-1 text-sm"
-                  rows={2}
-                  value={f.answer}
-                  onChange={(e) =>
-                    setFaqs((rows) => {
-                      const copy = [...rows];
-                      copy[idx] = { ...copy[idx], answer: e.target.value };
-                      return copy;
-                    })
-                  }
-                />
-                <button
-                  type="button"
-                  className="text-xs text-red-400"
-                  onClick={() =>
-                    setFaqs((rows) => rows.filter((_, i) => i !== idx))
-                  }
+            <div className="mt-4 space-y-3">
+              {staff.map((s, idx) => (
+                <div
+                  key={idx}
+                  className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto]"
                 >
-                  Entfernen
-                </button>
+                  <input
+                    type="text"
+                    placeholder="Name"
+                    value={s.name}
+                    onChange={(e) =>
+                      updateStaff(idx, { name: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Google Kalender ID (optional)"
+                    value={s.calendarId}
+                    onChange={(e) =>
+                      updateStaff(idx, { calendarId: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+                  />
+
+                  <div className="flex items-center justify-end gap-3">
+                    <label className="inline-flex items-center gap-1 text-xs text-slate-600">
+                      <input
+                        type="radio"
+                        name="defaultStaff"
+                        checked={s.isDefault}
+                        onChange={() =>
+                          setStaff((prev) =>
+                            prev.map((st, i) => ({
+                              ...st,
+                              isDefault: i === idx,
+                            }))
+                          )
+                        }
+                        className="h-4 w-4 border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
+                      />
+                      Standard
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={s.active}
+                        onChange={(e) =>
+                          updateStaff(idx, { active: e.target.checked })
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
+                      />
+                      Aktiv
+                    </label>
+                    {staff.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setStaff((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                        className="text-xs text-slate-400 hover:text-rose-500"
+                      >
+                        Entfernen
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* FAQs */}
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  FAQ-Bausteine
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Häufige Fragen, die die AI direkt beantworten kann.
+                </p>
               </div>
-            ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setFaqs((prev) => [
+                    ...prev,
+                    { question: "", answer: "", active: true },
+                  ])
+                }
+                className="text-sm font-medium text-[#3B82F6] hover:underline"
+              >
+                + Frage hinzufügen
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {faqs.map((f, idx) => (
+                <div
+                  key={idx}
+                  className="space-y-2 rounded-xl border border-slate-100 bg-slate-50/60 p-4"
+                >
+                  <input
+                    type="text"
+                    placeholder="Frage"
+                    value={f.question}
+                    onChange={(e) =>
+                      updateFaq(idx, { question: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+                  />
+                  <textarea
+                    placeholder="Antwort"
+                    value={f.answer}
+                    onChange={(e) =>
+                      updateFaq(idx, { answer: e.target.value })
+                    }
+                    rows={2}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+                  />
+                  <div className="flex items-center justify-between">
+                    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={f.active}
+                        onChange={(e) =>
+                          updateFaq(idx, { active: e.target.checked })
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
+                      />
+                      Aktiv
+                    </label>
+                    {faqs.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFaqs((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                        className="text-xs text-slate-400 hover:text-rose-500"
+                      >
+                        Entfernen
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Footer / Actions */}
+          <div className="sticky bottom-0 mt-4 bg-gradient-to-t from-[#F8FAFC] pt-4">
+            {error && (
+              <div className="mb-3 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                Einstellungen gespeichert. Du wirst zum Dashboard weitergeleitet…
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard")}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                Später ausfüllen
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Speichern…" : "Onboarding abschließen"}
+              </button>
+            </div>
           </div>
-        </section>
-
-        {/* Footer */}
-        {error && (
-          <p className="text-sm text-red-400">
-            Fehler beim Speichern: {error}
-          </p>
-        )}
-        {success && (
-          <p className="text-sm text-emerald-400">
-            Onboarding gespeichert. Du kannst jetzt im Admin-Dashboard
-            weiterarbeiten.
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded bg-emerald-600 px-4 py-2 text-sm font-semibold disabled:opacity-60"
-        >
-          {loading ? "Speichert..." : "Onboarding speichern"}
-        </button>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

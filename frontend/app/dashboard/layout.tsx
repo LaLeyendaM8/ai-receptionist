@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { createClients } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
+import { Sidebar } from "./_components/Sidebar";
 
 type ClientRow = {
   id: string;
@@ -10,6 +11,8 @@ type ClientRow = {
   stripe_status: string | null;
   stripe_plan: string | null;
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({
   children,
@@ -29,12 +32,8 @@ export default async function DashboardLayout({
     .eq("owner_user", userId)
     .maybeSingle();
 
-  if (error) {
+  if (error || !client) {
     console.error("Error loading client for dashboard", error);
-    redirect("/onboarding");
-  }
-
-  if (!client) {
     redirect("/onboarding");
   }
 
@@ -42,21 +41,39 @@ export default async function DashboardLayout({
   const hasActiveSub =
     stripeStatus === "active" || stripeStatus === "trialing";
 
-  return (
-    <main className="min-h-screen">
-      {!hasActiveSub && (
-        <div className="mb-4 border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <p className="font-semibold">Kein aktives Abo</p>
-          <p className="mt-1">
-            Du hast aktuell kein aktives ReceptaAI-Abo.{" "}
-            <a href="/pricing" className="font-medium underline">
-              Hier kannst du dein Abo abschließen oder erneuern.
-            </a>
-          </p>
-        </div>
-      )}
+  // ---- Server Action für direkten Logout ----
+  async function logoutAction() {
+    "use server";
 
-      {children}
+    const supabase = await createClients();
+    await supabase.auth.signOut();
+
+    redirect("/login");
+  }
+
+  return (
+    <main className="min-h-screen bg-[#F8FAFC] text-[#1E293B]">
+      <div className="flex h-screen">
+        {/* Sidebar links */}
+        <Sidebar logoutAction={logoutAction} />
+
+        {/* Content rechts */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Hinweis, falls kein aktives Abo */}
+          {!hasActiveSub && (
+            <div className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-900">
+              <p className="font-medium">Kein aktives Abonnement</p>
+              <p className="text-xs">
+                Du hast aktuell noch kein aktives ReceptaAI-Abo. Bitte schließe
+                dein Abo über die Landingpage ab.
+              </p>
+            </div>
+          )}
+
+          {/* Dashboard-Content mit 24px Padding (Figma-Spec) */}
+          <div className="px-6 py-6">{children}</div>
+        </div>
+      </div>
     </main>
   );
 }

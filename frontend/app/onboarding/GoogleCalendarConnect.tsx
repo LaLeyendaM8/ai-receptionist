@@ -1,3 +1,4 @@
+// frontend/app/onboarding/GoogleCalendarConnect.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,13 +10,14 @@ export default function GoogleCalendarConnect() {
   const [error, setError] = useState<string | null>(null);
 
   async function loadStatus() {
+    setError(null);
+    setStatus("loading");
     try {
-      setError(null);
       const res = await fetch("/api/google/auth-status");
       if (!res.ok) {
-        setStatus("error");
         const data = await res.json().catch(() => ({}));
         setError(data?.error ?? "Unbekannter Fehler beim Laden des Status.");
+        setStatus("error");
         return;
       }
       const data = await res.json();
@@ -32,53 +34,74 @@ export default function GoogleCalendarConnect() {
   }, []);
 
   function handleConnectClick() {
-    // Direkt auf die OAuth-Start-Route navigieren (die macht den Redirect)
+    // Direkt auf die OAuth-Start-Route navigieren (macht den Redirect)
     window.location.href = "/api/google/oauth/start";
   }
 
   const isConnected = status === "connected";
 
   return (
-    <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-      <h2 className="text-lg font-semibold">Google Kalender verbinden</h2>
-      <p className="text-sm text-gray-600">
-        Verbinde deinen Google Kalender, damit ReceptaAI automatisch Termine
-        für dich eintragen kann.
-      </p>
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Google Kalender verbinden
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Verbinde deinen Google Kalender, damit ReceptaAI automatisch Termine
+            eintragen und geblockte Zeiten berücksichtigen kann.
+          </p>
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm">
-          {status === "loading" && <span>Verbindungsstatus wird geladen…</span>}
-          {status === "connected" && (
-            <span className="font-medium text-green-700">
-              ✅ Google Kalender ist verbunden.
-            </span>
-          )}
-          {status === "disconnected" && (
-            <span className="text-red-600">
-              Noch nicht verbunden. Bitte verbinde deinen Kalender.
-            </span>
-          )}
-          {status === "error" && (
-            <span className="text-red-600">
-              Konnte den Status nicht laden.
-              {error ? ` (${error})` : null}
-            </span>
-          )}
+          <div className="mt-4 text-xs text-slate-500">
+            {status === "loading" && (
+              <span>Verbindungsstatus wird geladen…</span>
+            )}
+
+            {status === "connected" && (
+              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+                <span className="mr-1 h-2 w-2 rounded-full bg-emerald-500" />
+                Google Kalender ist verbunden.
+              </span>
+            )}
+
+            {status === "disconnected" && (
+              <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-700">
+                <span className="mr-1 h-2 w-2 rounded-full bg-amber-500" />
+                Noch nicht verbunden. Bitte verbinde deinen Kalender.
+              </span>
+            )}
+
+            {status === "error" && (
+              <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 font-medium text-rose-700">
+                <span className="mr-1 h-2 w-2 rounded-full bg-rose-500" />
+                Konnte den Status nicht laden.
+                {error ? ` (${error})` : null}
+              </span>
+            )}
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleConnectClick}
-          disabled={status === "loading"}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isConnected ? "Erneut verbinden" : "Mit Google verbinden"}
-        </button>
+        <div className="flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={handleConnectClick}
+            disabled={status === "loading"}
+            className="inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isConnected ? "Erneut verbinden" : "Mit Google verbinden"}
+          </button>
+
+          <button
+            type="button"
+            onClick={loadStatus}
+            className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-500"
+          >
+            Status aktualisieren
+          </button>
+        </div>
       </div>
 
-      {/* Optional: kleiner Hinweis */}
-      <p className="text-xs text-gray-500">
+      <p className="mt-4 text-xs text-slate-400">
         Hinweis: Du wirst zu Google weitergeleitet, um den Zugriff auf deinen
         Kalender zu bestätigen.
       </p>
