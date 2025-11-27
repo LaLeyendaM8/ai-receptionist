@@ -1,26 +1,48 @@
 @import "tailwindcss";
 
+/* Basis-Variablen für Light-Mode */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #F8FAFC;  /* helles Hintergrundgrau aus deinem Moodboard */
+  --foreground: #1E293B;  /* Textfarbe (dunkles Blau) */
 }
 
+/* Tailwind v4 Theme – hier definieren wir Brand-Farben */
 @theme inline {
+  /* Standard-Hintergrund/Text für Klassen bg-background, text-foreground */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  /* Deine Brand-Farben -> Klassen: bg-brand-primary, text-brand-primary etc. */
+  --color-brand-background: #F8FAFC;
+  --color-brand-text: #1E293B;
+  --color-brand-primary: #3B82F6;
+  --color-brand-secondary: #10B981;
+  --color-brand-accent: #2563EB;
+
+  /* Tailwind-Standardschrift für font-sans */
+  /* wird von next/font im layout.tsx gesetzt (Inter/Roboto-Variablen) */
+  --font-sans: var(--font-roboto);
 }
 
+/* Dark-Mode könntest du später noch ausbauen, erstmal weglassen oder anpassen */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #020617;  /* super dunkles Blau statt reines Schwarz */
+    --foreground: #E5E7EB;
   }
 }
 
+/* Globaler Body-Style */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-brand-background);
+  color: var(--color-brand-text);
+  font-family: var(--font-roboto), system-ui, -apple-system, sans-serif;
+}
+
+/* Überschriften in Inter */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
 }
