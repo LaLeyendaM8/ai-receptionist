@@ -111,7 +111,13 @@ export async function POST(req: Request) {
   }
 
   // 4) Optional: Autologin vorbereiten – Client holt sich danach normale Session per Login
-  // (Autologin-Variante können wir später noch bauen, wenn du willst.)
 
-  return NextResponse.json({ ok: true }, { status: 200 });
+  return NextResponse.json(
+    {
+      ok: true,
+      email,
+      userId,
+     },
+      { status: 200 }
+    );
 }

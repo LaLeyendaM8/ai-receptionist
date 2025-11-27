@@ -3,6 +3,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 export default function SignupForm() {
   const router = useRouter();
@@ -100,6 +101,18 @@ export default function SignupForm() {
       }
 
       // Signup erfolgreich → weiter ins Onboarding
+      const loginEmail = data.email ?? email;
+      const { error: loginErr } = await supabaseBrowser.auth.signInWithPassword({
+        email: loginEmail,
+        password,
+      });
+      if (loginErr){
+        console.error("[SIGNUP] login error", loginErr);
+        setError(
+          "Der Account wurde erstellt, aber das automatische Login ist fehlgeschlagen. Bitte logge dich manuell ein."
+        );
+        return;
+      }
       router.push("/onboarding");
     } catch (err) {
       console.error(err);
