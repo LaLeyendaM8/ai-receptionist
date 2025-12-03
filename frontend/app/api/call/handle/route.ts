@@ -4,8 +4,6 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { twiml as TwiML } from "twilio";
 
-const BASE = process.env.PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
 // Twilio sendet application/x-www-form-urlencoded → Text lesen & parsen
 async function parseForm(req: Request) {
   const raw = await req.text();
@@ -23,7 +21,7 @@ export async function POST(req: Request) {
     const params = Object.fromEntries(new URLSearchParams(raw));
     const userText = params.SpeechResult || params.TranscriptionText || params.Digits || "";
 
-    const BASE = process.env.PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const BASE = process.env.PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
     const vr = new TwiML.VoiceResponse();
 
     if (!userText) {

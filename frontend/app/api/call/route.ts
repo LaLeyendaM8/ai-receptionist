@@ -9,8 +9,7 @@ import { twiml as TwiML } from "twilio";
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN as string;
 const PUBLIC_BASE_URL =
   process.env.PUBLIC_BASE_URL ||
-  process.env.NEXT_PUBLIC_APP_URL ||
-  "http://localhost:3000";
+  process.env.NEXT_PUBLIC_APP_URL;
 
 function verifyTwilioSignature(req: NextRequest, body: Record<string, any>) {
   try {
