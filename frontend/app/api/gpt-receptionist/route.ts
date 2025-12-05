@@ -17,13 +17,41 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { text } = await req.json();
+     const { text, clientId } = (await req.json()) as {
+    text?: string;
+    clientId?: string | null;
+  };
 
-    // 1) Profil laden (MVP: neuestes ai_profile)
-    let profileText = "";
-    try {
-      const supabase = createServiceClient();
-      const { data: client, error: profileErr } = await supabase
+  if (!text || typeof text !== "string") {
+    return NextResponse.json(
+      { success: false, error: "missing text" },
+      { status: 400 }
+    );
+  }
+
+  // 1) Profil laden (MVP: client-spezifisch, Fallback: neuestes ai_profile)
+  let profileText = "";
+  try {
+    const supabase = createServiceClient();
+
+    // 1a) Wenn clientId übergeben wurde → genau dieses Unternehmen laden
+    if (clientId) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("ai_profile")
+        .eq("id", clientId)
+        .maybeSingle();
+
+      if (!error && data?.ai_profile) {
+        profileText = data.ai_profile as string;
+      } else if (error) {
+        console.error("[BRAIN] profile load (by clientId) error", error);
+      }
+    }
+
+    // 1b) Fallback: wie bisher, neuestes Profil mit ai_profile ≠ null
+    if (!profileText) {
+      const { data, error } = await supabase
         .from("clients")
         .select("ai_profile")
         .not("ai_profile", "is", null)
@@ -31,14 +59,16 @@ export async function POST(req: Request) {
         .limit(1)
         .maybeSingle();
 
-      if (!profileErr && client?.ai_profile) {
-        profileText = client.ai_profile as string;
-      } else if (profileErr) {
-        console.error("[BRAIN] profile load error", profileErr);
+      if (!error && data?.ai_profile) {
+        profileText = data.ai_profile as string;
+      } else if (error) {
+        console.error("[BRAIN] profile load (fallback) error", error);
       }
-    } catch (e) {
-      console.error("[BRAIN] profile load unexpected", e);
     }
+  } catch (e) {
+    console.error("[BRAIN] profile load unexpected", e);
+  }
+
 
     // 2) System-Prompt inkl. Profil
     const system = `
