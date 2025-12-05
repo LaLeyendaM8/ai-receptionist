@@ -27,7 +27,7 @@ export async function POST(req: Request) {
         .from("clients")
         .select("ai_profile")
         .not("ai_profile", "is", null)
-        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
