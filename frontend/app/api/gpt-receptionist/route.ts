@@ -17,8 +17,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-     const { text, clientId } = (await req.json()) as {
+     const { text, fromNumber, toNumber, clientId } = (await req.json()) as {
     text?: string;
+    fromNumber?: string | null;
+    toNumber?: string | null;
     clientId?: string | null;
   };
 
@@ -30,44 +32,46 @@ export async function POST(req: Request) {
   }
 
   // 1) Profil laden (MVP: client-spezifisch, Fallback: neuestes ai_profile)
-  let profileText = "";
-  try {
-    const supabase = createServiceClient();
+      let profileText = "";
+    let client: { id: string; ai_profile?: string | null } | null = null;
 
-    // 1a) Wenn clientId übergeben wurde → genau dieses Unternehmen laden
-    if (clientId) {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("ai_profile")
-        .eq("id", clientId)
-        .maybeSingle();
+    try {
+      const supabase = createServiceClient();
 
-      if (!error && data?.ai_profile) {
-        profileText = data.ai_profile as string;
-      } else if (error) {
-        console.error("[BRAIN] profile load (by clientId) error", error);
+      if (clientId) {
+        // Multi-Tenant: direkt über clientId
+        const { data, error: clientErr } = await supabase
+          .from("clients")
+          .select("id, ai_profile")
+          .eq("id", clientId)
+          .maybeSingle();
+
+        if (clientErr) {
+          console.error("[BRAIN] profile load error (by clientId)", clientErr);
+        }
+        client = data;
+      } else {
+        // Fallback: wie bisher → neuestes Profil des aktuellen Users
+        const { data, error: profileErr } = await supabase
+          .from("clients")
+          .select("id, ai_profile")
+          .not("ai_profile", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (profileErr) {
+          console.error("[BRAIN] profile load error (no clientId)", profileErr);
+        }
+        client = data;
       }
-    }
 
-    // 1b) Fallback: wie bisher, neuestes Profil mit ai_profile ≠ null
-    if (!profileText) {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("ai_profile")
-        .not("ai_profile", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!error && data?.ai_profile) {
-        profileText = data.ai_profile as string;
-      } else if (error) {
-        console.error("[BRAIN] profile load (fallback) error", error);
+      if (client?.ai_profile) {
+        profileText = client.ai_profile as string;
       }
+    } catch (e) {
+      console.error("[BRAIN] profile load unexpected", e);
     }
-  } catch (e) {
-    console.error("[BRAIN] profile load unexpected", e);
-  }
 
 
     // 2) System-Prompt inkl. Profil
@@ -132,7 +136,7 @@ ${profileText}
       const r = await fetch(`${BASE}/api/ai/appointment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, clientId: client?.id ?? clientId ?? null, }),
       });
 
       if (!r.ok) {
@@ -159,7 +163,7 @@ ${profileText}
       const r = await fetch(`${BASE}/api/ai/faq`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, clientId: client?.id ?? clientId ?? null, }),
       });
 
       if (!r.ok) {

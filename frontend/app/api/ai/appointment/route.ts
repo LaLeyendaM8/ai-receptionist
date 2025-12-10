@@ -226,19 +226,82 @@ export async function isWithinBusinessHours(
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClients();
+    const { message, clientId: bodyClientId } = await req.json() as {
+      message: string;
+      clientId?: string | null;
+    };
 
-    // User ermitteln (DEV_USER_ID als Fallback)
-    const userId = await getCurrentUserId(supabase);
-    if (!userId) {
-      return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+    if (!message || typeof message !== "string") {
+      return NextResponse.json(
+        { error: "invalid_message" },
+        { status: 400 }
+      );
     }
 
-    // Request lesen
-    const body = await req.json().catch(() => null);
-    const message: string | undefined = body?.message;
-    if (!message)
-      return NextResponse.json({ error: "bad_json" }, { status: 400 });
+    const supabase = await createClients();
+
+    // --- Client bestimmen: entweder über clientId ODER eingeloggten User ---
+    type ClientRow = { id: string; timezone: string | null; owner_user: string; };
+
+    let client: ClientRow | null = null;
+
+    if (bodyClientId) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, timezone, owner_user")
+        .eq("id", bodyClientId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[APPOINTMENT] client load error (by clientId)", error);
+        return NextResponse.json(
+          { error: "client_load_failed" },
+          { status: 500 }
+        );
+      }
+      if (!data) {
+        return NextResponse.json(
+          { error: "client_not_found" },
+          { status: 404 }
+        );
+      }
+
+      client = data;
+    } else {
+      const userId = await getCurrentUserId(supabase);
+      if (!userId) {
+        return NextResponse.json(
+          { error: "unauthenticated" },
+          { status: 401 }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, timezone, owner_user")
+        .eq("owner_user", userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[APPOINTMENT] client load error (by user)", error);
+        return NextResponse.json(
+          { error: "client_load_failed" },
+          { status: 500 }
+        );
+      }
+      if (!data) {
+        return NextResponse.json(
+          { error: "no_client_for_user" },
+          { status: 404 }
+        );
+      }
+
+      client = data;
+    }
+
+    const clientId = client.id as string;
+    const ownerUserId = client.owner_user as string; 
+    const timezone = client.timezone || "Europe/Berlin";
 
     // 1) Intent/Parsing via LLM
     const completion = await openai.chat.completions.create({
@@ -259,28 +322,6 @@ export async function POST(req: Request) {
 
     const intent = parsed?.intent || "none";
 
-    // Client des Users holen (Onboarding sorgt dafür)
-    const { data: clientRow, error: clientErr } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("owner_user", userId)
-      .single();
-
-    if (clientErr || !clientRow?.id) {
-      console.error("[APPOINTMENT] client not configured", { userId, clientErr });
-
-      return NextResponse.json(
-        {
-          status: "error",
-          error: "client_not_configured",
-          message:
-            "Aktuell kann ich leider keine Termine anlegen. Bitte versuchen Sie es später erneut.",
-        },
-        { status: 200 }
-      );
-    }
-
-    const clientId = clientRow.id as string;
 
     // ------------------------------------------------------------------
     // CASE 1: INFO – "Wann ist mein Termin?"
@@ -425,7 +466,7 @@ export async function POST(req: Request) {
       // Google-Kalender-Event ggf. löschen
       if (appt.google_event_id) {
         try {
-          const { oauth2 } = await getOAuth2ForUser(userId);
+          const { oauth2 } = await getOAuth2ForUser(ownerUserId);
           const calendar = google.calendar({ version: "v3", auth: oauth2 });
           await calendar.events.delete({
             calendarId: "primary",
@@ -475,7 +516,7 @@ export async function POST(req: Request) {
     }
 
     // ------------------------------------------------------------------
-    // CASE 3: RESCHEDULE – nächsten Termin verschieben
+    // CASE 3: RESCHEDULE – Termin verschieben
     // ------------------------------------------------------------------
     if (intent === "reschedule_appointment") {
       const newDate: string | null = parsed.new_date;
@@ -654,7 +695,7 @@ export async function POST(req: Request) {
       // Google-Event updaten
       if (updated.google_event_id) {
         try {
-          const { oauth2 } = await getOAuth2ForUser(userId);
+          const { oauth2 } = await getOAuth2ForUser(ownerUserId);
           const calendar = google.calendar({ version: "v3", auth: oauth2 });
           await calendar.events.patch({
             calendarId: "primary",
@@ -816,6 +857,141 @@ export async function POST(req: Request) {
     // ------------------------------------------------------------------
     // CASE 5: CREATE – neuer Termin
     // ------------------------------------------------------------------
+   
+    // *** NEUER CASE: Nutzer bestätigt den Termin ***
+// Intent-Namen musst du zum Prompt passend wählen.
+// Beispiel: "appointment_confirm"
+if (intent === "appointment_confirm") {
+  // 1) Neuesten Draft für diesen Client holen
+  const { data: draft, error: dErr } = await supabase
+    .from("appointment_drafts")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (dErr || !draft) {
+    console.error("[APPOINTMENT CONFIRM] draft load error", dErr);
+    return NextResponse.json(
+      { status: "error", error: "draft_not_found" },
+      { status: 404 }
+    );
+  }
+
+  const startAt = new Date(draft.start_at);
+  const endAt = new Date(draft.end_at);
+
+  // 2) Safety-Checks
+  if (!(await isWithinBusinessHours(supabase, clientId, startAt, endAt))) {
+    return NextResponse.json(
+      { status: "error", error: "outside_business_hours" },
+      { status: 409 }
+    );
+  }
+
+  if (await hasOverlap(supabase, clientId, draft.start_at, draft.end_at)) {
+    return NextResponse.json(
+      { status: "error", error: "slot_taken" },
+      { status: 409 }
+    );
+  }
+
+  // 3) Termin in DB eintragen
+  const { data: appts, error: aErr } = await supabase
+    .from("appointments")
+    .insert({
+      client_id: clientId,
+      title: draft.title ?? "Termin",
+      start_at: draft.start_at,
+      end_at: draft.end_at,
+      status: "booked",
+      source: "ai",
+      notes: draft.notes ?? "",
+      staff_id: draft.staff_id,
+      customer_name: draft.customer_name,
+      customer_phone: draft.customer_phone,
+    })
+    .select()
+    .limit(1);
+
+  if (aErr || !appts || !appts[0]) {
+    console.error("[APPOINTMENT CONFIRM] db_insert_failed", aErr);
+    return NextResponse.json(
+      { status: "error", error: "db_insert_failed", details: aErr?.message },
+      { status: 500 }
+    );
+  }
+
+  const appointment = appts[0];
+
+  // 4) Google Event versuchen
+  let googleEventId: string | undefined = undefined;
+  let calendarSynced = false;
+  let calendarError: string | null = null;
+
+  try {
+    const { oauth2 } = await getOAuth2ForUser(ownerUserId);
+    const calendar = google.calendar({ version: "v3", auth: oauth2 });
+
+    const ins = await calendar.events.insert({
+      calendarId: "primary",
+      requestBody: {
+        summary: appointment.title,
+        description: "Erstellt durch ReceptaAI",
+        start: { dateTime: appointment.start_at, timeZone: "Europe/Berlin" },
+        end: { dateTime: appointment.end_at, timeZone: "Europe/Berlin" },
+      },
+    });
+
+    if (ins.data.id) {
+      googleEventId = ins.data.id;
+      await supabase
+        .from("appointments")
+        .update({ google_event_id: ins.data.id })
+        .eq("id", appointment.id);
+
+      calendarSynced = true;
+    }
+  } catch (gErr: any) {
+    console.error("[APPOINTMENT CONFIRM] google_insert_failed", gErr);
+    calendarError =
+      gErr instanceof Error ? gErr.message : String(gErr ?? "unknown");
+  }
+
+  // 5) Draft löschen
+  await supabase
+    .from("appointment_drafts")
+    .delete()
+    .eq("id", draft.id);
+
+  // 6) Schönen Bestätigungssatz bauen (wie in confirm/route.ts)
+  const start = new Date(appointment.start_at);
+  const dateStr = start.toLocaleDateString("de-DE", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Berlin",
+  });
+  const timeStr = start.toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
+
+  const say = `Alles klar. Ich habe den Termin für ${appointment.customer_name ?? "Sie"} am ${dateStr} um ${timeStr} eingetragen.`;
+
+  return NextResponse.json({
+    status: "created",
+    appointment,
+    googleEventId,
+    calendarSynced,
+    calendarError,
+    say,
+  });
+}
+
     if (intent !== "create_appointment") {
       // keine Termin-Intention
       return NextResponse.json({ status: "none" }, { status: 200 });
@@ -1126,7 +1302,7 @@ export async function POST(req: Request) {
 
     // 8) Draft speichern
     console.log("[APPOINTMENT] BEFORE_DRAFT_INSERT", {
-      userId,
+      ownerUserId,
       clientId,
       svc,
       startISO,
@@ -1137,7 +1313,7 @@ export async function POST(req: Request) {
     const { data: draft, error: dErr } = await supabase
       .from("appointment_drafts")
       .insert({
-        user_id: userId,
+        user_id: ownerUserId,
         client_id: clientId,
         title: svc.title,
         start_at: startISO,
