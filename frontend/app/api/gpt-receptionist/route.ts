@@ -17,11 +17,12 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-     const { text, fromNumber, toNumber, clientId } = (await req.json()) as {
+     const { text, fromNumber, toNumber, clientId, sessionId } = (await req.json()) as {
     text?: string;
     fromNumber?: string | null;
     toNumber?: string | null;
     clientId?: string | null;
+    sessionId?: string | null;
   };
 
   if (!text || typeof text !== "string") {
@@ -127,37 +128,56 @@ ${profileText}
     const intent = (brain.intent || "").toLowerCase();
     let result: any = { intent, meta: brain.meta || {} };
 
-    // 1) Termin-Kram → Appointment-Superlogik
-    if (
-      intent === "appointment" ||
-      intent === "appointment_booking" ||
-      intent === "route_appointment"
-    ) {
-      const r = await fetch(`${BASE}/api/ai/appointment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, clientId: client?.id ?? clientId ?? null, }),
-      });
+// 1) Termin-Kram → Appointment-Superlogik
+const appointmentIntents = new Set([
+  // neue Varianten aus appointmentPrompt
+  "create_appointment",
+  "cancel_appointment",
+  "reschedule_appointment",
+  "appointment_info",
+  "availability",
+  "staff_availability",
+  "appointment_confirm",
 
-      if (!r.ok) {
-        console.warn("[BRAIN] appointment status:", r.status);
-        result.reply =
-          brain.reply ||
-          "Es gab ein Problem bei der Terminverwaltung. Bitte versuchen Sie es später erneut.";
-      } else {
-        const data = await r.json();
-        result = { ...result, ...data };
+  // alte Fallbacks, falls der Brain-Prompt noch an einer Stelle
+  // "appointment" / "appointment_booking" / "route_appointment" ausspuckt
+  "appointment",
+  "appointment_booking",
+  "route_appointment",
+]);
 
-        // etwas zum Vorlesen für /api/call/handle vorbereiten
-        if (data.status === "need_info" && data.question) {
-          result.reply = data.question;
-        } else if (data.message) {
-          result.reply = data.message;
-        } else if (data.reply) {
-          result.reply = data.reply;
-        }
-      }
+if (appointmentIntents.has(intent)) {
+  const r = await fetch(`${BASE}/api/ai/appointment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: text,
+      clientId: client?.id ?? clientId ?? null,
+      sessionId,       // kommt vom Call-Handle
+      intent,          // Brain-Intent z.B. "create_appointment" oder "appointment_confirm"
+      parsed: brain.meta?.parsed ?? null, // optional, falls du später was brauchst
+    }),
+  });
+
+  if (!r.ok) {
+    console.warn("[BRAIN] appointment status:", r.status);
+    result.reply =
+      brain.reply ||
+      "Es ist ein Fehler bei der Terminverarbeitung aufgetreten. Bitte versuchen Sie es später erneut.";
+  } else {
+    const data = await r.json();
+    result = { ...result, ...data };
+
+    if (data.status === "need_info" && data.question) {
+      result.reply = data.question;
+    } else if (data.message) {
+      result.reply = data.message;
+    } else if (data.reply) {
+      result.reply = data.reply;
     }
+  }
+}
+
     // 2) FAQ → /api/ai/faq
     else if (intent === "faq") {
       const r = await fetch(`${BASE}/api/ai/faq`, {

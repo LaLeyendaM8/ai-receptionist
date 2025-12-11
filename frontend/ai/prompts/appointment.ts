@@ -18,6 +18,7 @@ Gib IMMER ein JSON in GENAU diesem Schema zurück:
            | "appointment_info"
            | "availability"
            | "staff_availability"
+           | "appointment_confirm"
            | "none",
 
   "service": string | null,     
@@ -90,6 +91,16 @@ Bedeutung der Intents:
       - "duration_min": schätzen oder 30
       - "time": null
       - Wenn Mitarbeitername unklar → "missing": "staff"
+
+- "appointment_confirm":
+    Der Nutzer bestätigt einen zuvor vorgeschlagenen Termin.
+    Beispiele:
+      - „Ja, bitte so eintragen.“
+      - „Ja, das passt perfekt.“
+      - „Genau, bitte buchen.“
+    Regeln:
+      - Du kannst alle Felder außer "intent" auf null lassen,
+        weil der Server sich die Termindaten im Hintergrund merkt.
 
 - "none":
     Keine Terminintention.
@@ -195,5 +206,20 @@ User: "Wann ist mein Termin nochmal?"
   "customer_phone": null,
   "duration_min": null,
   "missing": "customer_name"
+}
+
+User: "Ja, bitte genau so buchen."
+{
+  "intent": "appointment_confirm",
+  "service": null,
+  "date": null,
+  "time": null,
+  "new_date": null,
+  "new_time": null,
+  "preferred_staff": null,
+  "customer_name": null,
+  "customer_phone": null,
+  "duration_min": null,
+  "missing": null
 }
 `;

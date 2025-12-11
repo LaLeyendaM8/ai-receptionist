@@ -120,7 +120,7 @@ export async function POST(req: Request) {
     const params = await parseForm(req);
     const userText =
       params.SpeechResult || params.TranscriptionText || params.Digits || "";
-
+    const callSid = params.CallSid as String | undefined;
     const fromNumber = params.From || "";
     const toNumber =
       params.To || params.Called || params.ToFormatted || "";
@@ -180,6 +180,7 @@ export async function POST(req: Request) {
           from: fromNumber,
           to: toNumber,
           clientId: clientProfile?.id ?? null,
+          sessionId: callSid,
         }),
         signal: ctrl.signal,
       });

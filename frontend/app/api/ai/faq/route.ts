@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         {
           status: "handoff",
           message:
-            "Mir fehlen Firmendaten (z.B. Öffnungszeiten). Ich leite die Anfrage an einen Mitarbeiter weiter.",
+            "Mir fehlen Firmendaten (z.B. Öffnungszeiten). Ich leite die Anfrage an einen Mitarbeiter weiter. Sie bekommen nächstmöglich Rückmeldung zu ihrer Anfrage.",
         },
         { status: 200 }
       );
