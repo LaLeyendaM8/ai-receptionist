@@ -1,4 +1,3 @@
-// app/api/ai/faq/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -13,34 +12,43 @@ import { getCurrentUserId } from "@/lib/authServer";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 type FaqLLMResponse = {
-  intent?: string;        // "faq" | "handoff" | "route_appointment" ...
+  intent?: string; // "faq" | "handoff" | "route_appointment" ...
   answer?: string;
-  confidence?: number;    // 0..1
+  confidence?: number; // 0..1
 };
 
 export async function POST(req: Request) {
   const supabase = await createClients();
 
   try {
-    // 1) User ermitteln
-  
-
-    const userId = await getCurrentUserId(supabase);
-    if (!userId) {
-      return NextResponse.json(
-        { error: "unauthenticated" },
-        { status: 401 }
-      );
-    }
-    // 2) Body & Frage lesen
+    // 1) Body lesen
     const body = await req.json().catch(() => null);
     const userQuestion: string | undefined = body?.message;
+    const clientIdFromBody: string | null = body?.clientId ?? null;
+
     if (!userQuestion) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    // 3) Kontext aus DB bauen (Client + FAQs, Öffnungszeiten etc.)
-    const { clientId, text: context } = await buildFaqContext(userId);
+    // 2) Tenant bestimmen: entweder direkt per clientId (Call)
+    //    oder über eingeloggt User → owner_user (Dashboard)
+    let userId: string | null = null;
+
+    if (!clientIdFromBody) {
+      userId = await getCurrentUserId(supabase);
+      if (!userId) {
+        return NextResponse.json(
+          { error: "unauthenticated" },
+          { status: 401 }
+        );
+      }
+    }
+
+    // 3) Kontext aus DB bauen
+    const { clientId, text: context } = await buildFaqContext({
+      userId,
+      clientId: clientIdFromBody ?? undefined,
+    });
 
     // Kein Client hinterlegt → sofort Handoff
     if (!clientId) {
@@ -48,23 +56,30 @@ export async function POST(req: Request) {
         {
           status: "handoff",
           message:
-            "Mir fehlen Firmendaten (z.B. Öffnungszeiten). Ich leite die Anfrage an einen Mitarbeiter weiter. Sie bekommen nächstmöglich Rückmeldung zu ihrer Anfrage.",
+            "Mir fehlen Firmendaten (z.B. Öffnungszeiten). Ich leite die Anfrage an einen Mitarbeiter weiter.",
         },
         { status: 200 }
       );
     }
-const { data: client } = await supabase
-  .from("clients")
-  .select("ai_enabled")
-  .eq("id", clientId)
-  .single();
 
-if (!client?.ai_enabled) {
-  return NextResponse.json({
-    status: "handoff",
-    message: "Die AI ist aktuell deaktiviert. Ich leite an einen Mitarbeiter weiter."
-  });
-}
+    // 3b) AI für diesen Client aktiviert?
+    const { data: clientRow } = await supabase
+      .from("clients")
+      .select("ai_enabled, notification_email")
+      .eq("id", clientId)
+      .maybeSingle();
+
+    if (!clientRow?.ai_enabled) {
+      return NextResponse.json(
+        {
+          status: "handoff",
+          message:
+            "Die AI ist aktuell deaktiviert. Ich leite an einen Mitarbeiter weiter.",
+        },
+        { status: 200 }
+      );
+    }
+
     // 4) LLM-Aufruf
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -111,7 +126,7 @@ if (!client?.ai_enabled) {
         .from("handoffs")
         .insert({
           client_id: clientId,
-          user_id: userId,
+          user_id: userId, // kann bei Call null sein, falls Spalte nullable ist
           question: userQuestion,
           intent,
           confidence: conf,
@@ -129,14 +144,8 @@ if (!client?.ai_enabled) {
         );
       }
 
-      // 6b) E-Mail-Benachrichtigung (best effort, Fehler nur loggen)
+      // 6b) E-Mail-Benachrichtigung (best effort)
       try {
-        const { data: clientRow } = await supabase
-          .from("clients")
-          .select("notification_email")
-          .eq("id", clientId)
-          .maybeSingle();
-
         if (clientRow?.notification_email) {
           await notifyHandoff(clientRow.notification_email, userQuestion);
         }
