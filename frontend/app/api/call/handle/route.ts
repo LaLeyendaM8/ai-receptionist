@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { twiml as TwiML } from "twilio";
 import { createServiceClient } from "@/lib/supabaseClients";
+import { ensureConversationState, incrementCounter, resetCounters } from "@/lib/conversation-state";
 
 // ---------------------------------------------------------------------------
 // Konfiguration / Helper
@@ -127,47 +128,92 @@ export async function POST(req: Request) {
 
     // Multi-Tenant: Client anhand der angerufenen Nummer laden
     const clientProfile = await loadClientProfile(params);
+const sessionId = String(callSid || "");
+let conv = null as any;
+
+if (clientProfile?.id && sessionId) {
+  try {
+    const supabase = createServiceClient();
+    conv = await ensureConversationState({
+      supabase,
+      clientId: clientProfile.id,
+      sessionId,
+      channel: "phone",
+    });
+  } catch (e) {
+    console.warn("[HANDLE] ensureConversationState failed", e);
+  }
+}
 
     const vr = new TwiML.VoiceResponse();
 
-    if (!userText) {
-      // Nichts verstanden → Rückfrage + noch ein Gather
-      const g = vr.gather({
-        input: ["speech"],
-        language: "de-DE",
-        action: `${BASE}/api/call/handle`,
-        method: "POST",
-        speechTimeout: "auto",
-        timeout: 6,
-        actionOnEmptyResult: true,
-      });
+// Wenn das der erste Turn ist (kein SpeechResult) -> Begrüßung + Gather
+const isFirstTurn = !params.SpeechResult && !params.TranscriptionText && !params.Digits;
 
-      const followGreeting = clientProfile
-        ? `Entschuldigung, ich habe nichts gehört. ${buildGreeting(
-            clientProfile
-          )}`
-        : "Entschuldigung, ich habe nichts gehört. Was kann ich für Sie tun?";
+if (isFirstTurn) {
+  const g = vr.gather({
+    input: ["speech"],
+    language: "de-DE",
+    action: `${BASE}/api/call/handle`,
+    method: "POST",
+    speechTimeout: "auto",
+    timeout: 6,
+    actionOnEmptyResult: true,
+  });
 
-      sayWithTTS(g, followGreeting);
+  sayWithTTS(g, buildGreeting(clientProfile));
+  return new Response(vr.toString(), { headers: { "Content-Type": "text/xml" } });
+}
 
-      // Fallback, falls auch dieses Gather leer bleibt:
-      sayWithTTS(
-        vr,
-        "Okay, dann wünsche ich Ihnen einen schönen Tag. Auf Wiederhören."
-      );
-      vr.hangup();
 
-      return new Response(vr.toString(), {
-        headers: { "Content-Type": "text/xml" },
-      });
+if (!userText) {
+  // CSH: noSpeechCount erhöhen
+  let count = 1;
+  try {
+    if (conv && clientProfile?.id && sessionId) {
+      const supabase = createServiceClient();
+      count = await incrementCounter({ supabase, conv, key: "noSpeechCount" });
     }
+  } catch {}
+
+  if (count >= 3) {
+    sayWithTTS(vr, "Ich konnte leider nichts hören. Bitte rufen Sie später nochmal an. Auf Wiederhören.");
+    vr.hangup();
+    return new Response(vr.toString(), { headers: { "Content-Type": "text/xml" } });
+  }
+
+  const g = vr.gather({
+    input: ["speech"],
+    language: "de-DE",
+    action: `${BASE}/api/call/handle`,
+    method: "POST",
+    speechTimeout: "auto",
+    timeout: 6,
+    actionOnEmptyResult: true,
+  });
+
+  const msg =
+    count === 1
+      ? "Entschuldigung, ich habe nichts gehört. Können Sie das bitte nochmal sagen?"
+      : "Ich höre Sie leider nicht. Bitte sprechen Sie einmal deutlich – was kann ich für Sie tun?";
+
+  sayWithTTS(g, msg);
+  return new Response(vr.toString(), { headers: { "Content-Type": "text/xml" } });
+}
+try {
+  if (conv) {
+    const supabase = createServiceClient();
+    await resetCounters({ supabase, conv });
+  }
+} catch {}
+
 
     // ---------------------------------------------------------------------
     // GPT-Brain aufrufen (mit Client-Kontext)
     // ---------------------------------------------------------------------
 
     let reply = "Alles klar. Ich habe das so notiert.";
-
+    let endCall = false;
     try {
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), 5000);
@@ -177,52 +223,54 @@ export async function POST(req: Request) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: userText,
-          from: fromNumber,
-          to: toNumber,
+          fromNumber: fromNumber,
+          toNumber: toNumber,
           clientId: clientProfile?.id ?? null,
-          sessionId: callSid,
+          sessionId,
         }),
         signal: ctrl.signal,
       });
 
       clearTimeout(tid);
 
-      if (r.ok) {
-        const j = await r.json();
-        reply = j?.reply || reply;
-      } else {
+
+if (r.ok) {
+  const j = await r.json();
+  reply = j?.reply || reply;
+  endCall = Boolean(j?.end_call);
+}
+ else {
         console.warn("[HANDLE] GPT status:", r.status);
       }
     } catch (e: any) {
       console.warn("[HANDLE] GPT timeout/error:", e?.name || e);
     }
 
-    // Nur EINES senden: Play ODER Say
-    sayWithTTS(vr, reply);
+// Antwort ausspielen
+sayWithTTS(vr, reply);
 
-    // Nächste Runde: neues Gather für Follow-up
-    const g2 = vr.gather({
-      input: ["speech"],
-      language: "de-DE",
-      action: `${BASE}/api/call/handle`,
-      method: "POST",
-      speechTimeout: "auto",
-      timeout: 6,
-      actionOnEmptyResult: true,
-    });
+if (endCall) {
+  vr.hangup();
+  return new Response(vr.toString(), { headers: { "Content-Type": "text/xml" } });
+}
 
-    sayWithTTS(g2, "Kann ich sonst noch etwas für Sie tun?");
 
-    // Fallback, wenn keine Antwort mehr kommt
-    sayWithTTS(
-      vr,
-      "Alles klar. Vielen Dank für Ihren Anruf. Auf Wiederhören."
-    );
-    vr.hangup();
+// still gather, NO extra sentence
+ vr.gather({
+  input: ["speech"],
+  language: "de-DE",
+  action: `${BASE}/api/call/handle`,
+  method: "POST",
+  speechTimeout: "auto",
+  timeout: 6,
+  actionOnEmptyResult: true,
+});
 
-    return new Response(vr.toString(), {
-      headers: { "Content-Type": "text/xml" },
-    });
+return new Response(vr.toString(), { headers: { "Content-Type": "text/xml" } });
+
+
+
+
   } catch (e: any) {
     console.error("[HANDLE] fatal:", e);
     const vr = new TwiML.VoiceResponse();

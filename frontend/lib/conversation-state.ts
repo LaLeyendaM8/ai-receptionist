@@ -18,6 +18,11 @@ export type ConversationStateJson = {
   lastIntent?: string;
   step?: string;
   appointment?: AppointmentCS;
+
+  // ✅ Counters (CSH)
+  noSpeechCount?: number;      // Twilio hat nichts erkannt
+  noUnderstandCount?: number;  // GPT war unsicher / "nicht verstanden"
+
   // future: faq, handoffs, ...
 };
 
@@ -86,21 +91,57 @@ export async function ensureConversationState({
   } as ConversationState;
 }
 
+// ---------------------
+// ✅ Deep merge helpers
+// ---------------------
+function isObject(v: any) {
+  return v && typeof v === "object" && !Array.isArray(v);
+}
+
+function deepMerge<T extends Record<string, any>>(base: T, patch: Partial<T>): T {
+  const out: any = { ...(base ?? {}) };
+  for (const [k, v] of Object.entries(patch ?? {})) {
+    if (isObject(out[k]) && isObject(v)) {
+      out[k] = deepMerge(out[k], v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 type PatchArgs = {
   supabase: SupabaseClient;
   id: string;
   patch: Partial<ConversationStateJson>;
 };
 
+// ✅ patch = merge statt overwrite
 export async function patchConversationState({
   supabase,
   id,
   patch,
 }: PatchArgs): Promise<void> {
+  // 1) existing state laden
+  const { data: row, error: rErr } = await supabase
+    .from("conversation_state")
+    .select("state")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (rErr) {
+    console.error("[CSH] patch load error", rErr);
+    throw rErr;
+  }
+
+  const current = (row?.state ?? {}) as ConversationStateJson;
+  const merged = deepMerge(current, patch);
+
+  // 2) update merged
   const { error } = await supabase
     .from("conversation_state")
     .update({
-      state: patch,
+      state: merged,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -135,4 +176,40 @@ export async function clearConversationState({
     console.error("[CSH] clear error", error);
     throw error;
   }
+}
+
+// ---------------------
+// ✅ Counter helpers
+// ---------------------
+type CounterKey = "noSpeechCount" | "noUnderstandCount";
+
+export async function incrementCounter(args: {
+  supabase: SupabaseClient;
+  conv: ConversationState;
+  key: CounterKey;
+  max?: number;
+}): Promise<number> {
+  const { supabase, conv, key } = args;
+  const current = Number((conv.state as any)?.[key] ?? 0);
+  const next = current + 1;
+
+  await patchConversationState({
+    supabase,
+    id: conv.id,
+    patch: { [key]: next } as any,
+  });
+
+  return next;
+}
+
+export async function resetCounters(args: {
+  supabase: SupabaseClient;
+  conv: ConversationState;
+}): Promise<void> {
+  const { supabase, conv } = args;
+  await patchConversationState({
+    supabase,
+    id: conv.id,
+    patch: { noSpeechCount: 0, noUnderstandCount: 0 },
+  });
 }
