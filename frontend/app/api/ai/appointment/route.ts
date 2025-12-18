@@ -1464,11 +1464,10 @@ if (intent === "appointment_confirm") {
 }
 
 // ------------------------------------------------------------------
-// CASE 5: CREATE – neuer Termin (CSH-ready)
+// CASE 5: CREATE – neuer Termin (CSH-ready, clean order)
 // ------------------------------------------------------------------
 
 if (intent !== "create_appointment") {
-  // keine Termin-Intention
   return NextResponse.json({ status: "none" }, { status: 200 });
 }
 
@@ -1482,20 +1481,10 @@ if (parsed.service) {
   nextAppointment.serviceName = parsed.service;
 }
 if (parsed.date) {
-  if (isISODate(parsed.date)) {
-    nextAppointment.date = parsed.date;
-  } else {
-    // ungültiges Datum → nicht übernehmen
-    nextAppointment.date = null;
-  }
+  nextAppointment.date = isISODate(parsed.date) ? parsed.date : null;
 }
 if (parsed.time) {
-  if (isTimeHM(parsed.time)) {
-    nextAppointment.time = parsed.time;
-  } else {
-    // ungültige Zeit → nicht übernehmen
-    nextAppointment.time = null;
-  }
+  nextAppointment.time = isTimeHM(parsed.time) ? parsed.time : null;
 }
 if (parsed.customer_name) {
   nextAppointment.customerName = parsed.customer_name;
@@ -1510,10 +1499,8 @@ if (requestedStaffName) {
   nextAppointment.staffName = requestedStaffName;
 }
 
-// 2) Fehlende Kern-Infos (service / date / time)
-
-// Service fehlt
-if (!nextAppointment.serviceName) {
+// Helper: CSH patch + return need_info
+const needInfo = async (missing: string, question: string) => {
   if (conv) {
     await patchConversationState({
       supabase,
@@ -1527,69 +1514,25 @@ if (!nextAppointment.serviceName) {
   }
 
   return NextResponse.json(
-    {
-      status: "need_info",
-      missing: "service",
-      question:
-        "Für welche Leistung möchten Sie buchen? (z. B. Haarschnitt, Färben, Maniküre)",
-    },
+    { status: "need_info", missing, question },
     { status: 200 }
   );
-}
+};
 
-// Datum fehlt
+// 2) Erst Datum abfragen (cleaner UX)
 if (!nextAppointment.date) {
-  if (conv) {
-    await patchConversationState({
-      supabase,
-      id: conv.id,
-      patch: {
-        ...convState,
-        lastIntent: intent,
-        appointment: nextAppointment,
-      },
-    });
-  }
-
-  return NextResponse.json(
-    {
-      status: "need_info",
-      missing: "date",
-      question: "An welchem Tag möchten Sie den Termin? (YYYY-MM-DD)",
-    },
-    { status: 200 }
-  );
+  return await needInfo("date", "An welchem Tag möchten Sie den Termin? (YYYY-MM-DD)");
 }
 
-// Uhrzeit fehlt
+// 3) Dann Uhrzeit abfragen
 if (!nextAppointment.time) {
-  if (conv) {
-    await patchConversationState({
-      supabase,
-      id: conv.id,
-      patch: {
-        ...convState,
-        lastIntent: intent,
-        appointment: nextAppointment,
-      },
-    });
-  }
-
-  return NextResponse.json(
-    {
-      status: "need_info",
-      missing: "time",
-      question: "Welche Uhrzeit passt Ihnen? (HH:MM, 24h)",
-    },
-    { status: 200 }
-  );
+  return await needInfo("time", "Welche Uhrzeit passt Ihnen? (HH:MM, 24h)");
 }
 
-const serviceText: string = nextAppointment.serviceName!;
 const dateStr: string = nextAppointment.date!;
 const timeStr: string = nextAppointment.time!;
 
-// 3) Schnell-Check – ist an dem Tag überhaupt offen?
+// 4) Schnell-Check: ist an dem Tag überhaupt offen?
 const testDate = new Date(`${dateStr}T12:00:00`);
 const weekday = testDate.getDay();
 
@@ -1601,141 +1544,98 @@ const { data: dayHours, error: dayErr } = await supabase
   .maybeSingle();
 
 if (!dayErr && dayHours?.is_closed) {
-  if (conv) {
-    await patchConversationState({
-      supabase,
-      id: conv.id,
-      patch: {
-        ...convState,
-        lastIntent: intent,
-        appointment: nextAppointment,
-      },
-    });
-  }
-
-  return NextResponse.json(
-    {
-      status: "need_info",
-      missing: "date",
-      question:
-        "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?",
-    },
-    { status: 200 }
+  return await needInfo(
+    "date",
+    "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?"
   );
 }
 
-// 4) Service mappen
-const svc = await getServiceByMessage(supabase, clientId, serviceText || "");
-if (!svc) {
-  if (conv) {
-    await patchConversationState({
-      supabase,
-      id: conv.id,
-      patch: {
-        ...convState,
-        lastIntent: intent,
-        appointment: nextAppointment,
-      },
-    });
-  }
+// 5) Vorab: Vergangenheit + Pre-Öffnungszeiten-Check mit Default-Dauer (30min)
+//    (damit wir nicht erst nach Service merken, dass Uhrzeit eh unmöglich ist)
+const startLocalPre = `${dateStr}T${timeStr}:00`;
+const startAtPre = new Date(startLocalPre);
+const now = new Date();
 
-  return NextResponse.json(
-    {
-      status: "need_info",
-      missing: "service",
-      question:
-        "Für welche Leistung möchten Sie genau buchen? (z. B. Haarschnitt, Färben, Maniküre)",
-    },
-    { status: 200 }
+if (startAtPre.getTime() <= now.getTime()) {
+  return await needInfo(
+    "date",
+    "Das Datum liegt in der Vergangenheit. Welches zukünftige Datum passt Ihnen? (Bitte YYYY-MM-DD)"
+  );
+}
+
+const preDurationMin = 30;
+const endAtPre = new Date(startAtPre.getTime() + preDurationMin * 60 * 1000);
+
+const preHoursResult = await isWithinBusinessHours(
+  supabase,
+  clientId,
+  startAtPre,
+  endAtPre
+);
+
+if (!preHoursResult.ok) {
+  if (preHoursResult.reason === "closed") {
+    return await needInfo(
+      "date",
+      "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?"
+    );
+  }
+  return await needInfo(
+    "time",
+    "Die Uhrzeit liegt außerhalb der Öffnungszeiten. Welche Zeit innerhalb der Öffnungszeiten passt Ihnen?"
+  );
+}
+
+// 6) Jetzt Service abfragen/mappen (erst wenn Datum+Uhrzeit plausibel sind)
+if (!nextAppointment.serviceName) {
+  return await needInfo(
+    "service",
+    "Für welche Leistung möchten Sie buchen? (z. B. Haarschnitt, Färben, Maniküre)"
+  );
+}
+
+const serviceText: string = nextAppointment.serviceName!;
+const svc = await getServiceByMessage(supabase, clientId, serviceText || "");
+
+if (!svc) {
+  return await needInfo(
+    "service",
+    "Für welche Leistung möchten Sie genau buchen? (z. B. Haarschnitt, Färben, Maniküre)"
   );
 }
 
 const durationMin = svc.durationMin ?? 30;
 
-// 4b) Kundendaten
-const customerName: string | null = nextAppointment.customerName ?? null;
-const customerPhone: string | null = nextAppointment.phone ?? null;
-const needsCustomerName = !customerName;
-
-// 5) Start/Ende bestimmen
-const startLocal = `${dateStr}T${timeStr}:00`;
-const startAt = new Date(startLocal);
-const now = new Date();
-if (startAt.getTime() <= now.getTime()) {
-  if (conv) {
-    await patchConversationState({
-      supabase,
-      id: conv.id,
-      patch: {
-        ...convState,
-        lastIntent: intent,
-        appointment: nextAppointment,
-      },
-    });
-  }
-
-  return NextResponse.json(
-    {
-      status: "need_info",
-      missing: "date",
-      question:
-        "Das Datum liegt in der Vergangenheit. Welches zukünftige Datum passt Ihnen? (Bitte YYYY-MM-DD)",
-    },
-    { status: 200 }
-  );
-}
+// 7) Final: Start/Ende mit echter Dauer + finaler Öffnungszeiten-Check
+const startAt = startAtPre;
 const endAt = new Date(startAt.getTime() + durationMin * 60 * 1000);
 const startISO = startAt.toISOString();
 const endISO = endAt.toISOString();
 
-// 6) Öffnungszeiten-Check
-const hoursResult = await isWithinBusinessHours(
-  supabase,
-  clientId,
-  startAt,
-  endAt
-);
-
+const hoursResult = await isWithinBusinessHours(supabase, clientId, startAt, endAt);
 if (!hoursResult.ok) {
-  if (conv) {
-    await patchConversationState({
-      supabase,
-      id: conv.id,
-      patch: {
-        ...convState,
-        lastIntent: intent,
-        appointment: nextAppointment,
-      },
-    });
-  }
-
   if (hoursResult.reason === "closed") {
-    return NextResponse.json(
-      {
-        status: "need_info",
-        missing: "date",
-        question:
-          "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?",
-      },
-      { status: 200 }
+    return await needInfo(
+      "date",
+      "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?"
     );
   }
-  return NextResponse.json(
-    {
-      status: "need_info",
-      missing: "time",
-      question:
-        "Die Uhrzeit liegt außerhalb der Öffnungszeiten. Welche Zeit innerhalb der Öffnungszeiten passt Ihnen?",
-    },
-    { status: 200 }
+  return await needInfo(
+    "time",
+    "Die Uhrzeit liegt außerhalb der Öffnungszeiten. Welche Zeit innerhalb der Öffnungszeiten passt Ihnen?"
   );
 }
 
-// 7) STAFF-LOGIK
+// 8) Kundendaten
+const customerName: string | null = nextAppointment.customerName ?? null;
+const customerPhone: string | null = nextAppointment.phone ?? null;
+const needsCustomerName = !customerName;
+
+// 9) STAFF-LOGIK
 let staffId: string | null = null;
 let staffName: string | null = nextAppointment.staffName ?? null;
 
-// 7a) Wenn Kunde explizit Mitarbeiter genannt hat → diesen suchen
+// 9a) Wenn Kunde explizit Mitarbeiter genannt hat → diesen suchen
 if (requestedStaffName) {
   const { data: staffRow } = await supabase
     .from("staff")
@@ -1745,26 +1645,9 @@ if (requestedStaffName) {
     .maybeSingle();
 
   if (!staffRow) {
-    if (conv) {
-      await patchConversationState({
-        supabase,
-        id: conv.id,
-        patch: {
-          ...convState,
-          lastIntent: intent,
-          appointment: nextAppointment,
-        },
-      });
-    }
-
-    return NextResponse.json(
-      {
-        status: "need_info",
-        missing: "staff",
-        question:
-          "Welcher Mitarbeiter oder welche Mitarbeiterin soll es sein?",
-      },
-      { status: 200 }
+    return await needInfo(
+      "staff",
+      "Welcher Mitarbeiter oder welche Mitarbeiterin soll es sein?"
     );
   }
 
@@ -1795,11 +1678,10 @@ if (requestedStaffName) {
     const baseQuestion = `Zu dieser Zeit ist ${staffName} bereits ausgebucht.`;
     const question =
       suggestions.length > 0
-        ? `${baseQuestion} Ich könnte Ihnen zum Beispiel ${suggestions.join(
-            ", "
-          )} anbieten. Welche Uhrzeit passt Ihnen?`
+        ? `${baseQuestion} Ich könnte Ihnen zum Beispiel ${suggestions.join(", ")} anbieten. Welche Uhrzeit passt Ihnen?`
         : `${baseQuestion} Haben Sie eine andere Uhrzeit im Kopf?`;
 
+    // CSH patch (state behalten)
     if (conv) {
       await patchConversationState({
         supabase,
@@ -1813,17 +1695,12 @@ if (requestedStaffName) {
     }
 
     return NextResponse.json(
-      {
-        status: "need_info",
-        missing: "time",
-        question,
-        suggestions,
-      },
+      { status: "need_info", missing: "time", question, suggestions },
       { status: 200 }
     );
   }
 } else {
-  // 7b) Kein Wunsch geäußert → Default Staff versuchen
+  // 9b) Kein Wunsch → Default Staff versuchen
   if (svc.defaultStaffId) {
     const overlapDefault = await hasOverlap(
       supabase,
@@ -1840,11 +1717,12 @@ if (requestedStaffName) {
         .select("name")
         .eq("id", svc.defaultStaffId)
         .maybeSingle();
+
       staffName = defaultStaffRow?.name ?? null;
     }
   }
 
-  // 7c) Wenn kein Default oder Default voll → freien Staff suchen
+  // 9c) Wenn kein Default oder Default voll → freien Staff suchen
   if (!staffId) {
     const { data: staffList } = await supabase
       .from("staff")
@@ -1855,13 +1733,7 @@ if (requestedStaffName) {
       let freeStaff: any = null;
 
       for (const s of staffList) {
-        const ov = await hasOverlap(
-          supabase,
-          clientId,
-          startISO,
-          endISO,
-          s.id
-        );
+        const ov = await hasOverlap(supabase, clientId, startISO, endISO, s.id);
         if (!ov) {
           freeStaff = s;
           break;
@@ -1904,12 +1776,7 @@ if (requestedStaffName) {
         }
 
         return NextResponse.json(
-          {
-            status: "need_info",
-            missing: "time",
-            question,
-            suggestions,
-          },
+          { status: "need_info", missing: "time", question, suggestions },
           { status: 200 }
         );
       }
@@ -1918,12 +1785,11 @@ if (requestedStaffName) {
 }
 
 // Falls wir nur den Wunschnamen haben, aber keinen aus der DB, trotzdem
-// für den Satz verwenden
 if (!staffName && requestedStaffName) {
   staffName = requestedStaffName;
 }
 
-// 8) Draft speichern
+// 10) Draft speichern
 console.log("[APPOINTMENT] BEFORE_DRAFT_INSERT", {
   ownerUserId,
   clientId,
@@ -1953,18 +1819,14 @@ const { data: draft, error: dErr } = await supabase
 if (dErr) {
   console.error("[APPOINTMENT] DRAFT_INSERT_ERROR", dErr);
   return NextResponse.json(
-    {
-      status: "error",
-      error: "draft_insert_failed",
-      details: dErr,
-    },
+    { status: "error", error: "draft_insert_failed", details: dErr },
     { status: 500 }
   );
 }
 
 console.log("[APPOINTMENT] AFTER_DRAFT_INSERT", draft);
 
-// 9) CSH aktualisieren (inkl. draftId)
+// 11) CSH aktualisieren (inkl. draftId)
 if (conv) {
   const nextStateAfterDraft: AppointmentCS = {
     ...nextAppointment,
@@ -1988,11 +1850,10 @@ if (conv) {
     },
   });
 
-  // Lokales nextAppointment für den Rest auch updaten
   nextAppointment = nextStateAfterDraft;
 }
 
-// 10) Name nachfragen, falls noch fehlt
+// 12) Name nachfragen, falls noch fehlt
 if (needsCustomerName) {
   return NextResponse.json(
     {
@@ -2005,28 +1866,20 @@ if (needsCustomerName) {
   );
 }
 
-// 11) Freundliche Bestätigungsfrage
+// 13) Bestätigungsfrage
 const customerPart =
-  customerName && customerName.trim().length > 0
-    ? ` für ${customerName.trim()}`
-    : "";
+  customerName && customerName.trim().length > 0 ? ` für ${customerName.trim()}` : "";
 const staffPart =
-  staffName && staffName.trim().length > 0
-    ? ` bei ${staffName.trim()}`
-    : "";
+  staffName && staffName.trim().length > 0 ? ` bei ${staffName.trim()}` : "";
 
 const preview = `„${svc.title}“ am ${dateStr} um ${timeStr}${customerPart}${staffPart}`;
 const phrase = `Ich habe ${preview} eingetragen. Soll ich den Termin fix eintragen?`;
 
 return NextResponse.json(
-  {
-    status: "confirm",
-    draftId: draft.id,
-    preview,
-    phrase,
-  },
+  { status: "confirm", draftId: draft.id, preview, phrase },
   { status: 200 }
 );
+
 
   } catch (err: unknown) {
     console.error("[/api/ai/appointment] ERROR", err);
