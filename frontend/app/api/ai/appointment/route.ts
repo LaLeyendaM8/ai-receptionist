@@ -257,14 +257,14 @@ export async function POST(req: Request) {
     const supabase = await createClients();
 
     // --- Client bestimmen: entweder über clientId ODER eingeloggten User ---
-    type ClientRow = { id: string; timezone: string | null; owner_user: string; };
+    type ClientRow = { id: string; timezone: string | null; owner_user: string; staff_enabled: boolean | null; };
 
     let client: ClientRow | null = null;
 
     if (bodyClientId) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, timezone, owner_user")
+        .select("id, timezone, owner_user, staff_enabled")
         .eq("id", bodyClientId)
         .maybeSingle();
 
@@ -294,7 +294,7 @@ export async function POST(req: Request) {
 
       const { data, error } = await supabase
         .from("clients")
-        .select("id, timezone, owner_user")
+        .select("id, timezone, owner_user,staff_enabled")
         .eq("owner_user", userId)
         .maybeSingle();
 
@@ -318,6 +318,7 @@ export async function POST(req: Request) {
     const clientId = client.id as string;
     const ownerUserId = client.owner_user as string; 
     const timezone = client.timezone || "Europe/Berlin";
+    const staffEnabled = Boolean(client.staff_enabled);
 
     // ------------------------------------------------------------
     // Conversation State für diesen Call (Session) laden
@@ -1103,7 +1104,24 @@ if (intent === "availability" || intent === "staff_availability") {
   const durationMin: number = parsed.duration_min ?? 30;
   const requestedStaffName: string | null =
     parsed.preferred_staff ?? (parsed as any).staff ?? null;
+// Wenn Staff-Feature aus ist: staff_availability ist nicht möglich
+if (!staffEnabled && intent === "staff_availability") {
+  // Wir geben einfach allgemeine Verfügbarkeit zurück (ohne Mitarbeiter)
+  // und sagen klar, dass Mitarbeiterwünsche aktuell nicht gehen.
+  const dateOnly = parsed.date ?? null;
 
+  return NextResponse.json(
+    {
+      status: "availability",
+      message:
+        "Aktuell können wir leider keine Mitarbeiterwünsche annehmen. Ich kann Ihnen aber allgemeine freie Zeiten nennen – für welchen Tag möchten Sie die Verfügbarkeit wissen? (YYYY-MM-DD)",
+      suggestions: [],
+      staff: null,
+      date: isISODate(dateOnly) ? dateOnly : null,
+    },
+    { status: 200 }
+  );
+}
   // Basis-State aus CSH laden + neue Infos aus diesem Turn mergen
   let nextAppointment: AppointmentCS = {
     ...(appointmentState || {}),
@@ -1499,6 +1517,11 @@ if (requestedStaffName) {
   nextAppointment.staffName = requestedStaffName;
 }
 
+const staffNote =
+  !staffEnabled && requestedStaffName
+    ? "Aktuell können wir leider keine Mitarbeiterwünsche annehmen. Ich plane den Termin ohne festen Mitarbeiter. "
+    : "";
+
 // Helper: CSH patch + return need_info
 const needInfo = async (missing: string, question: string) => {
   if (conv) {
@@ -1631,57 +1654,38 @@ const customerName: string | null = nextAppointment.customerName ?? null;
 const customerPhone: string | null = nextAppointment.phone ?? null;
 const needsCustomerName = !customerName;
 
-// 9) STAFF-LOGIK
+// 9) STAFF-LOGIK (optional)
 let staffId: string | null = null;
 let staffName: string | null = nextAppointment.staffName ?? null;
 
-// 9a) Wenn Kunde explizit Mitarbeiter genannt hat → diesen suchen
-if (requestedStaffName) {
-  const { data: staffRow } = await supabase
-    .from("staff")
-    .select("id, name")
-    .eq("client_id", clientId)
-    .ilike("name", requestedStaffName)
-    .maybeSingle();
+if (!staffEnabled) {
+  // Staff-Feature AUS → wir planen ohne festen Mitarbeiter.
+  staffId = null;
+  staffName = null;
 
-  if (!staffRow) {
-    return await needInfo(
-      "staff",
-      "Welcher Mitarbeiter oder welche Mitarbeiterin soll es sein?"
-    );
-  }
+  // Optional: globaler Overlap-Check (ohne staff_id Einschränkung)
+  const overlapAny = await hasOverlap(supabase, clientId, startISO, endISO);
 
-  staffId = staffRow.id;
-  staffName = staffRow.name;
-
-  const overlapRequested = await hasOverlap(
-    supabase,
-    clientId,
-    startISO,
-    endISO,
-    staffId || undefined
-  );
-
-  if (overlapRequested) {
+  if (overlapAny) {
     const day = new Date(startAt);
     day.setHours(0, 0, 0, 0);
 
     const suggestions = await findNextFreeSlots(
       supabase,
       clientId,
-      staffId,
+      null,
       day,
       durationMin,
       5
     );
 
-    const baseQuestion = `Zu dieser Zeit ist ${staffName} bereits ausgebucht.`;
+    const baseQuestion =
+      "Zu dieser Zeit ist leider kein Slot frei. Welche andere Uhrzeit innerhalb der Öffnungszeiten passt Ihnen?";
     const question =
       suggestions.length > 0
-        ? `${baseQuestion} Ich könnte Ihnen zum Beispiel ${suggestions.join(", ")} anbieten. Welche Uhrzeit passt Ihnen?`
-        : `${baseQuestion} Haben Sie eine andere Uhrzeit im Kopf?`;
+        ? `${baseQuestion} Zum Beispiel: ${suggestions.join(", ")}.`
+        : baseQuestion;
 
-    // CSH patch (state behalten)
     if (conv) {
       await patchConversationState({
         supabase,
@@ -1700,93 +1704,160 @@ if (requestedStaffName) {
     );
   }
 } else {
-  // 9b) Kein Wunsch → Default Staff versuchen
-  if (svc.defaultStaffId) {
-    const overlapDefault = await hasOverlap(
+  // Staff-Feature AN → dein bestehender STAFF-Block bleibt unverändert
+  // 9a) Wenn Kunde explizit Mitarbeiter genannt hat → diesen suchen
+  if (requestedStaffName) {
+    const { data: staffRow } = await supabase
+      .from("staff")
+      .select("id, name")
+      .eq("client_id", clientId)
+      .ilike("name", requestedStaffName)
+      .maybeSingle();
+
+    if (!staffRow) {
+      return await needInfo(
+        "staff",
+        "Welcher Mitarbeiter oder welche Mitarbeiterin soll es sein?"
+      );
+    }
+
+    staffId = staffRow.id;
+    staffName = staffRow.name;
+
+    const overlapRequested = await hasOverlap(
       supabase,
       clientId,
       startISO,
       endISO,
-      svc.defaultStaffId
+      staffId || undefined
     );
 
-    if (!overlapDefault) {
-      staffId = svc.defaultStaffId;
-      const { data: defaultStaffRow } = await supabase
-        .from("staff")
-        .select("name")
-        .eq("id", svc.defaultStaffId)
-        .maybeSingle();
+    if (overlapRequested) {
+      const day = new Date(startAt);
+      day.setHours(0, 0, 0, 0);
 
-      staffName = defaultStaffRow?.name ?? null;
-    }
-  }
+      const suggestions = await findNextFreeSlots(
+        supabase,
+        clientId,
+        staffId,
+        day,
+        durationMin,
+        5
+      );
 
-  // 9c) Wenn kein Default oder Default voll → freien Staff suchen
-  if (!staffId) {
-    const { data: staffList } = await supabase
-      .from("staff")
-      .select("id, name")
-      .eq("client_id", clientId);
+      const baseQuestion = `Zu dieser Zeit ist ${staffName} bereits ausgebucht.`;
+      const question =
+        suggestions.length > 0
+          ? `${baseQuestion} Ich könnte Ihnen zum Beispiel ${suggestions.join(
+              ", "
+            )} anbieten. Welche Uhrzeit passt Ihnen?`
+          : `${baseQuestion} Haben Sie eine andere Uhrzeit im Kopf?`;
 
-    if (Array.isArray(staffList) && staffList.length > 0) {
-      let freeStaff: any = null;
-
-      for (const s of staffList) {
-        const ov = await hasOverlap(supabase, clientId, startISO, endISO, s.id);
-        if (!ov) {
-          freeStaff = s;
-          break;
-        }
-      }
-
-      if (freeStaff) {
-        staffId = freeStaff.id;
-        staffName = freeStaff.name;
-      } else {
-        const day = new Date(startAt);
-        day.setHours(0, 0, 0, 0);
-
-        const suggestions = await findNextFreeSlots(
+      if (conv) {
+        await patchConversationState({
           supabase,
-          clientId,
-          null,
-          day,
-          durationMin,
-          5
-        );
+          id: conv.id,
+          patch: {
+            ...convState,
+            lastIntent: intent,
+            appointment: nextAppointment,
+          },
+        });
+      }
 
-        const baseQuestion =
-          "Zu dieser Zeit ist kein Mitarbeiter frei. Welche andere Uhrzeit innerhalb der Öffnungszeiten passt Ihnen?";
-        const question =
-          suggestions.length > 0
-            ? `${baseQuestion} Zum Beispiel: ${suggestions.join(", ")}.`
-            : baseQuestion;
+      return NextResponse.json(
+        { status: "need_info", missing: "time", question, suggestions },
+        { status: 200 }
+      );
+    }
+  } else {
+    // 9b) Kein Wunsch → Default Staff versuchen
+    if (svc.defaultStaffId) {
+      const overlapDefault = await hasOverlap(
+        supabase,
+        clientId,
+        startISO,
+        endISO,
+        svc.defaultStaffId
+      );
 
-        if (conv) {
-          await patchConversationState({
-            supabase,
-            id: conv.id,
-            patch: {
-              ...convState,
-              lastIntent: intent,
-              appointment: nextAppointment,
-            },
-          });
+      if (!overlapDefault) {
+        staffId = svc.defaultStaffId;
+        const { data: defaultStaffRow } = await supabase
+          .from("staff")
+          .select("name")
+          .eq("id", svc.defaultStaffId)
+          .maybeSingle();
+
+        staffName = defaultStaffRow?.name ?? null;
+      }
+    }
+
+    // 9c) Wenn kein Default oder Default voll → freien Staff suchen
+    if (!staffId) {
+      const { data: staffList } = await supabase
+        .from("staff")
+        .select("id, name")
+        .eq("client_id", clientId);
+
+      if (Array.isArray(staffList) && staffList.length > 0) {
+        let freeStaff: any = null;
+
+        for (const s of staffList) {
+          const ov = await hasOverlap(supabase, clientId, startISO, endISO, s.id);
+          if (!ov) {
+            freeStaff = s;
+            break;
+          }
         }
 
-        return NextResponse.json(
-          { status: "need_info", missing: "time", question, suggestions },
-          { status: 200 }
-        );
+        if (freeStaff) {
+          staffId = freeStaff.id;
+          staffName = freeStaff.name;
+        } else {
+          const day = new Date(startAt);
+          day.setHours(0, 0, 0, 0);
+
+          const suggestions = await findNextFreeSlots(
+            supabase,
+            clientId,
+            null,
+            day,
+            durationMin,
+            5
+          );
+
+          const baseQuestion =
+            "Zu dieser Zeit ist kein Mitarbeiter frei. Welche andere Uhrzeit innerhalb der Öffnungszeiten passt Ihnen?";
+          const question =
+            suggestions.length > 0
+              ? `${baseQuestion} Zum Beispiel: ${suggestions.join(", ")}.`
+              : baseQuestion;
+
+          if (conv) {
+            await patchConversationState({
+              supabase,
+              id: conv.id,
+              patch: {
+                ...convState,
+                lastIntent: intent,
+                appointment: nextAppointment,
+              },
+            });
+          }
+
+          return NextResponse.json(
+            { status: "need_info", missing: "time", question, suggestions },
+            { status: 200 }
+          );
+        }
       }
     }
   }
-}
 
-// Falls wir nur den Wunschnamen haben, aber keinen aus der DB, trotzdem
-if (!staffName && requestedStaffName) {
-  staffName = requestedStaffName;
+  if (!staffName && requestedStaffName) {
+    staffName = requestedStaffName;
+  }
 }
 
 // 10) Draft speichern
@@ -1873,7 +1944,7 @@ const staffPart =
   staffName && staffName.trim().length > 0 ? ` bei ${staffName.trim()}` : "";
 
 const preview = `„${svc.title}“ am ${dateStr} um ${timeStr}${customerPart}${staffPart}`;
-const phrase = `Ich habe ${preview} eingetragen. Soll ich den Termin fix eintragen?`;
+const phrase = `${staffNote} Ich habe ${preview} eingetragen. Soll ich den Termin fix eintragen?`;
 
 return NextResponse.json(
   { status: "confirm", draftId: draft.id, preview, phrase },

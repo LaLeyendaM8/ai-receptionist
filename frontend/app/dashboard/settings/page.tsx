@@ -76,10 +76,47 @@ export async function toggleAIAction() {
   revalidatePath("/dashboard/settings");
 }
 
+// --- Server-Action: Staff-Logik an/aus schalten ---
+export async function toggleStaffAction() {
+  "use server";
+
+  const supabase = await createServerClientTyped();
+  const userId = await getCurrentUserId(supabase);
+
+  if (!userId) {
+    redirect("/login");
+  }
+
+  const { data: client, error } = await supabase
+    .from("clients")
+    .select("id, staff_enabled")
+    .eq("owner_user", userId)
+    .maybeSingle();
+
+  if (error || !client) {
+    console.error("[SETTINGS] toggleStaffAction get client error", error);
+    return;
+  }
+
+  const { error: updErr } = await supabase
+    .from("clients")
+    .update({ staff_enabled: !client.staff_enabled })
+    .eq("id", client.id);
+
+  if (updErr) {
+    console.error("[SETTINGS] toggleStaffAction update error", updErr);
+    return;
+  }
+
+  revalidatePath("/dashboard/settings");
+}
+
 // --- Page-Komponente ---
 export default async function SettingsPage() {
   const client = await getClient();
   const aiEnabled: boolean = client?.ai_enabled ?? false;
+  const staffEnabled: boolean = client?.staff_enabled ?? false;
+
 
   // Mock-Status für Google Calendar – später mit echter Logik ersetzen
   const isGoogleConnected = true;
@@ -383,6 +420,62 @@ export default async function SettingsPage() {
               </button>
             </div>
           </form>
+          <form action={toggleAIAction} className="space-y-3 text-sm">
+  <div className="flex items-center justify-between rounded-xl bg-[#F8FAFC] px-4 py-3">
+    <div>
+      <p className="font-medium text-[#1E293B]">AI aktivieren</p>
+      <p className="text-xs text-[#64748B]">
+        Wenn deaktiviert, werden Anrufe nicht automatisch beantwortet.
+      </p>
+    </div>
+    <button
+      type="submit"
+      className={[
+        "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition",
+        aiEnabled
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-slate-100 text-slate-600",
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "mr-2 inline-block h-2 w-2 rounded-full",
+          aiEnabled ? "bg-emerald-500" : "bg-slate-400",
+        ].join(" ")}
+      />
+      {aiEnabled ? "Aktiviert" : "Deaktiviert"}
+    </button>
+  </div>
+</form>
+
+<form action={toggleStaffAction} className="space-y-3 text-sm">
+  <div className="flex items-center justify-between rounded-xl bg-[#F8FAFC] px-4 py-3">
+    <div>
+      <p className="font-medium text-[#1E293B]">Mitarbeiterwünsche</p>
+      <p className="text-xs text-[#64748B]">
+        Wenn deaktiviert, werden Termine ohne Mitarbeiter-Zuordnung geplant.
+      </p>
+    </div>
+    <button
+      type="submit"
+      className={[
+        "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition",
+        staffEnabled
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-slate-100 text-slate-600",
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "mr-2 inline-block h-2 w-2 rounded-full",
+          staffEnabled ? "bg-emerald-500" : "bg-slate-400",
+        ].join(" ")}
+      />
+      {staffEnabled ? "Aktiviert" : "Deaktiviert"}
+    </button>
+  </div>
+</form>
+
         </div>
 
         {/* Stimme wählen (Mock) */}
