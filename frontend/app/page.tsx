@@ -1,5 +1,5 @@
 "use client";
-
+import Link from "next/link";
 import { useState } from "react";
 
 type FaqItem = {
@@ -598,21 +598,23 @@ export default function HomePage() {
               <div className="space-y-2 text-sm">
                 <p className="font-semibold text-slate-900">Unternehmen</p>
                 <span className="block text-slate-400">Über uns</span>
-                <span className="block text-slate-400">Blog</span>
-                <span className="block text-slate-400">Karriere</span>
+                <Link href="/impressum" className="block text-slate-600 hover:text-slate-900">
+                  Impresum
+                </Link>
                 <span className="block text-slate-400">Kontakt</span>
               </div>
 
               <div className="space-y-2 text-sm">
                 <p className="font-semibold text-slate-900">Kontakt</p>
+                <p className="text-slate-600">Michael F.E. Eraso Horn</p>
                 <p className="text-slate-600">info@receptaai.de</p>
-                <p className="text-slate-600">+49 30 1234567</p>
-                <p className="text-slate-600">Berlin, Deutschland</p>
+                <p className="text-slate-600">+49 177 1572418</p>
+                <p className="text-slate-600">Neu-Ulm, Deutschland</p>
               </div>
             </div>
 
             <div className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-400">
-              © {new Date().getFullYear()} ReceptaAI. Alle Rechte vorbehalten.
+              © {new Date().getFullYear()} ReceptaAI by Inhaber: Michael F.E. Eraso Horn. Alle Rechte vorbehalten.
               Made with ♥ in Germany.
             </div>
           </div>
