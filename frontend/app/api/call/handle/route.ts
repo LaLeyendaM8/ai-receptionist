@@ -11,7 +11,7 @@ import { ensureConversationState, incrementCounter, resetCounters } from "@/lib/
 // ---------------------------------------------------------------------------
 
 const BASE =
-  process.env.PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "";
+  process.env.PUBLIC_BASE_URL;
 
 const TTS_ENABLED = process.env.ENABLE_TTS !== "false";
 

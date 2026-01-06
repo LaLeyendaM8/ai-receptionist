@@ -9,8 +9,7 @@ export const dynamic = "force-dynamic";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 const BASE =
-  process.env.PUBLIC_BASE_URL ||
-  process.env.NEXT_PUBLIC_APP_URL;
+  process.env.PUBLIC_BASE_URL;
 
 export async function GET() {
   return NextResponse.json({ ok: true, route: "/api/gpt-receptionist" });

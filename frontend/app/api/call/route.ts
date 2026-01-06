@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const base = PUBLIC_BASE_URL;
+  const base = process.env.PUBLIC_BASE_URL;
 
 const twiml = `
 <Response>

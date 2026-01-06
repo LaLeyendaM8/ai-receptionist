@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { createClients } from "@/lib/supabaseClients";
+import { createClients, createServiceClient } from "@/lib/supabaseClients";
 import { faqPrompt } from "@/ai/prompts/faq";
 import { buildFaqContext } from "@/ai/logic/faqContext";
 import { notifyHandoff } from "@/lib/notifyHandoff";
@@ -18,11 +18,14 @@ type FaqLLMResponse = {
 };
 
 export async function POST(req: Request) {
-  const supabase = await createClients();
+      const body = await req.json();
+      const supabase = body?.clientId
+        ? createServiceClient()
+        : await createClients();
 
   try {
     // 1) Body lesen
-    const body = await req.json().catch(() => null);
+    
     const userQuestion: string | undefined = body?.message;
     const clientIdFromBody: string | null = body?.clientId ?? null;
 

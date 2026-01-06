@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { createClients } from "@/lib/supabaseClients";
+import { createClients, createServiceClient } from "@/lib/supabaseClients";
 import { appointmentPrompt } from "@/ai/prompts/appointment";
 import { getServiceByMessage } from "@/ai/logic/services";
 import { getOAuth2ForUser } from "@/lib/googleServer";
@@ -65,6 +65,84 @@ function hmToMinutes(hm: string): number {
   return h * 60 + m;
 }
 
+type ApptInterval = { start_at: string; end_at: string };
+
+function intervalsOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
+  return aStart < bEnd && aEnd > bStart;
+}
+
+// Key: clientId|staffId|windowStartISO|windowEndISO
+const overlapCache = new Map<string, ApptInterval[]>();
+
+function makeOverlapKey(
+  clientId: string,
+  staffId: string | null,
+  windowStartISO: string,
+  windowEndISO: string
+) {
+  return `${clientId}|${staffId ?? "none"}|${windowStartISO}|${windowEndISO}`;
+}
+
+async function prefetchOverlaps(
+  supabase: SupabaseClient,
+  clientId: string,
+  staffId: string | null,
+  windowStartISO: string,
+  windowEndISO: string
+) {
+  const key = makeOverlapKey(clientId, staffId, windowStartISO, windowEndISO);
+  if (overlapCache.has(key)) return key;
+
+  let q = supabase
+    .from("appointments")
+    .select("start_at,end_at")
+    .eq("client_id", clientId)
+    .neq("status", "cancelled")
+    // alle die ins Fenster reinragen
+    .lt("start_at", windowEndISO)
+    .gt("end_at", windowStartISO);
+
+  if (staffId) q = q.eq("staff_id", staffId);
+
+  const { data, error } = await q;
+  if (error) {
+    console.error("[AVAIL] prefetchOverlaps error", error);
+    overlapCache.set(key, []);
+    return key;
+  }
+
+  overlapCache.set(key, (data ?? []) as ApptInterval[]);
+  return key;
+}
+
+async function getAppointmentsForWindow(
+  supabase: SupabaseClient,
+  clientId: string,
+  windowStartISO: string,
+  windowEndISO: string,
+  staffId?: string
+): Promise<ApptInterval[]> {
+  let q = supabase
+    .from("appointments")
+    .select("start_at,end_at")
+    .eq("client_id", clientId)
+    .neq("status", "cancelled")
+    // Alle Termine, die in irgendeiner Form in das Fenster reinragen
+    .lt("start_at", windowEndISO)
+    .gt("end_at", windowStartISO);
+
+  if (staffId) q = q.eq("staff_id", staffId);
+
+  const { data, error } = await q;
+
+  if (error) {
+    console.error("[AVAIL] getAppointmentsForWindow error", error);
+    return [];
+  }
+
+  return (data ?? []) as ApptInterval[];
+}
+
 /**
  * Freie Slots für einen Tag (minutengenau, z. B. in 15-Minuten-Schritten).
  * Gibt eine Liste von Uhrzeiten als String ("HH:MM") in Europe/Berlin zurück.
@@ -76,23 +154,22 @@ async function findNextFreeSlots(
   day: Date,
   durationMin: number,
   maxSuggestions = 3,
-  windowStartMin?: number, // z. B. 14:00 → 840
-  windowEndMin?: number    // z. B. 18:00 → 1080
+  windowStartMin?: number,
+  windowEndMin?: number
 ) {
   const suggestions: string[] = [];
 
-  // Tag auf Mitternacht setzen
   const dayMidnight = new Date(day);
   dayMidnight.setHours(0, 0, 0, 0);
 
-  // 1) Öffnungszeiten holen
+  // 1) Öffnungszeiten
   const hours = await getBusinessHoursForDay(supabase, clientId, dayMidnight);
   if (!hours || hours.is_closed) return suggestions;
 
-  let startMinute = hours.open_min;   // z. B. 540 (09:00)
-  let endMinute = hours.close_min;    // z. B. 1080 (18:00)
+  let startMinute = hours.open_min;
+  let endMinute = hours.close_min;
 
-  // 2) Zeitfenster des Users berücksichtigen
+  // 2) User-Zeitfenster clampen
   if (typeof windowStartMin === "number" && windowStartMin > startMinute) {
     startMinute = windowStartMin;
   }
@@ -100,42 +177,43 @@ async function findNextFreeSlots(
     endMinute = windowEndMin;
   }
 
-  console.log("[AVAIL] window", {
-    open_min: hours.open_min,
-    close_min: hours.close_min,
-    startMinute,
-    endMinute,
-    windowStartMin,
-    windowEndMin,
-  });
+  // Fenster als echte Dates (für Prefetch-Query)
+  const windowStart = new Date(dayMidnight);
+  windowStart.setHours(Math.floor(startMinute / 60), startMinute % 60, 0, 0);
 
-  // 3) Minuten über den Tag iterieren (z. B. 15-Minuten-Schritte)
+  const windowEnd = new Date(dayMidnight);
+  windowEnd.setHours(Math.floor(endMinute / 60), endMinute % 60, 0, 0);
+
+  const windowStartISO = windowStart.toISOString();
+  const windowEndISO = windowEnd.toISOString();
+
+  // 3) EINMAL alle Termine fürs Fenster cachen
+await prefetchOverlaps(supabase, clientId, staffId, windowStartISO, windowEndISO);
+const cacheKey = makeOverlapKey(clientId, staffId, windowStartISO, windowEndISO);
+const existing = overlapCache.get(cacheKey) ?? [];
+
+
+  // 4) Iterate candidates, check overlap in-memory
   for (
     let m = startMinute;
     m + durationMin <= endMinute && suggestions.length < maxSuggestions;
     m += 15
   ) {
     const candidateStart = new Date(dayMidnight);
-    const h = Math.floor(m / 60);
-    const min = m % 60;
-    candidateStart.setHours(h, min, 0, 0);
+    candidateStart.setHours(Math.floor(m / 60), m % 60, 0, 0);
 
-    const candidateEnd = new Date(
-      candidateStart.getTime() + durationMin * 60 * 1000
+    const candidateEnd = new Date(candidateStart.getTime() + durationMin * 60 * 1000);
+
+    const hasOverlap = existing.some((a) =>
+      intervalsOverlap(
+        candidateStart,
+        candidateEnd,
+        new Date(a.start_at),
+        new Date(a.end_at)
+      )
     );
 
-    const startISO = candidateStart.toISOString();
-    const endISO = candidateEnd.toISOString();
-
-    const overlap = await hasOverlap(
-      supabase,
-      clientId,
-      startISO,
-      endISO,
-      staffId || undefined
-    );
-
-    if (!overlap) {
+    if (!hasOverlap) {
       suggestions.push(
         candidateStart.toLocaleTimeString("de-DE", {
           hour: "2-digit",
@@ -150,29 +228,46 @@ async function findNextFreeSlots(
 }
 
 
+
 // Overlap-Check inkl. optional staff_id
 async function hasOverlap(
-  supabase: any,
+  supabase: SupabaseClient,
   clientId: string,
   startISO: string,
   endISO: string,
   staffId?: string
 ): Promise<boolean> {
-  let query = supabase
-    .from("appointments")
-    .select("id")
-    .eq("client_id", clientId)
-    .neq("status", "cancelled")
-    .lte("start_at", endISO)
-    .gte("end_at", startISO);
+  // Wir prefetch-en für den Tag / das grobe Fenster um den Candidate herum.
+  // Minimal: wir nehmen den ganzen Tag, das ist ok fürs MVP.
+  const day = new Date(startISO);
+  day.setHours(0, 0, 0, 0);
 
-  if (staffId) {
-    query = query.eq("staff_id", staffId);
-  }
+  const windowStart = new Date(day);
+  const windowEnd = new Date(day);
+  windowEnd.setHours(23, 59, 59, 999);
 
-  const { data } = await query;
-  return Array.isArray(data) && data.length > 0;
+  const windowStartISO = windowStart.toISOString();
+  const windowEndISO = windowEnd.toISOString();
+
+  await prefetchOverlaps(
+    supabase,
+    clientId,
+    staffId ?? null,
+    windowStartISO,
+    windowEndISO
+  );
+
+  const key = makeOverlapKey(clientId, staffId ?? null, windowStartISO, windowEndISO);
+  const existing = overlapCache.get(key) ?? [];
+
+  const cStart = new Date(startISO);
+  const cEnd = new Date(endISO);
+
+  return existing.some((a) =>
+    intervalsOverlap(cStart, cEnd, new Date(a.start_at), new Date(a.end_at))
+  );
 }
+
 
 type HoursResult =
   | { ok: true }
@@ -253,8 +348,11 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    const supabase = await createClients();
+    
+    const body = await req.json();
+    const supabase = body?.clientId
+      ? createServiceClient()
+      : await createClients();
 
     // --- Client bestimmen: entweder über clientId ODER eingeloggten User ---
     type ClientRow = { id: string; timezone: string | null; owner_user: string; staff_enabled: boolean | null; };
