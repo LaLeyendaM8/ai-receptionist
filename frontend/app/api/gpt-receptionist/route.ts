@@ -1,4 +1,5 @@
 // app/api/gpt-receptionist/route.ts
+import { getBaseUrl } from "@/lib/getBaseUrl";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createServiceClient } from "@/lib/supabaseClients";
@@ -8,14 +9,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-const BASE =
-  process.env.PUBLIC_BASE_URL;
+
 
 export async function GET() {
   return NextResponse.json({ ok: true, route: "/api/gpt-receptionist" });
 }
 
 export async function POST(req: Request) {
+  const base = getBaseUrl(req);
   try {
      const { text, fromNumber, toNumber, clientId, sessionId } = (await req.json()) as {
     text?: string;
@@ -219,7 +220,7 @@ const appointmentIntents = new Set([
 ]);
 
 if (appointmentIntents.has(intent)) {
-  const r = await fetch(`${BASE}/api/ai/appointment`, {
+  const r = await fetch(`${base}/api/ai/appointment`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -269,7 +270,7 @@ if (data.status === "confirmed" || data.status === "cancelled" || data.status ==
 
     // 2) FAQ → /api/ai/faq
 else if (intent === "faq") {
-  const r = await fetch(`${BASE}/api/ai/faq`, {
+  const r = await fetch(`${base}/api/ai/faq`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -294,7 +295,7 @@ if (typeof (data as any)?.end_call === "boolean") {
 
     // Wenn FAQ sagt "route_appointment" -> direkt in Appointment flow übergeben
     if (data.status === "route_appointment") {
-      const ar = await fetch(`${BASE}/api/ai/appointment`, {
+      const ar = await fetch(`${base}/api/ai/appointment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

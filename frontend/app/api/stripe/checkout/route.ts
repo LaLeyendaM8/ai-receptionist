@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
-    const baseUrl = process.env.PUBLIC_BASE_URL;
+    const baseUrl = process.env.PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
 
     const monthlyPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY;
     const setupPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_SETUP;

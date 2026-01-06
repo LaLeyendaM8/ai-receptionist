@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+import { getBaseUrl } from "@/lib/getBaseUrl";
 import { NextResponse } from "next/server";
 import { twiml as TwiML } from "twilio";
 import { createServiceClient } from "@/lib/supabaseClients";
@@ -9,9 +10,6 @@ import { ensureConversationState, incrementCounter, resetCounters } from "@/lib/
 // ---------------------------------------------------------------------------
 // Konfiguration / Helper
 // ---------------------------------------------------------------------------
-
-const BASE =
-  process.env.PUBLIC_BASE_URL;
 
 const TTS_ENABLED = process.env.ENABLE_TTS !== "false";
 
@@ -31,15 +29,15 @@ async function parseForm(req: Request): Promise<Record<string, string>> {
  * TTS über ElevenLabs ( /api/speak ) mit Fallback auf Twilio „alice“.
  * target kann VoiceResponse oder Gather sein.
  */
-function sayWithTTS(target: any, text: string) {
+function sayWithTTS(target: any, text: string, base?: string) {
   if (!text) return;
 
-  if (!BASE || !TTS_ENABLED) {
+  if (!base || !TTS_ENABLED) {
     target.say({ voice: "alice", language: "de-DE" }, text);
     return;
   }
 
-  const u = new URL("/api/speak", BASE);
+  const u = new URL("/api/speak", base);
   u.searchParams.set("text", text);
   target.play(u.toString());
 }
@@ -117,6 +115,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const base = getBaseUrl(req);
   try {
     const params = await parseForm(req);
     const userText =
@@ -154,14 +153,14 @@ if (isFirstTurn) {
   const g = vr.gather({
     input: ["speech"],
     language: "de-DE",
-    action: `${BASE}/api/call/handle`,
+    action: `${base}/api/call/handle`,
     method: "POST",
     speechTimeout: "auto",
     timeout: 6,
     actionOnEmptyResult: true,
   });
 
-  sayWithTTS(g, buildGreeting(clientProfile));
+  sayWithTTS(g, buildGreeting(clientProfile),base);
   return new Response(vr.toString(), { headers: { "Content-Type": "text/xml" } });
 }
 
@@ -177,7 +176,7 @@ if (!userText) {
   } catch {}
 
   if (count >= 3) {
-    sayWithTTS(vr, "Ich konnte leider nichts hören. Bitte rufen Sie später nochmal an. Auf Wiederhören.");
+    sayWithTTS(vr, "Ich konnte leider nichts hören. Bitte rufen Sie später nochmal an. Auf Wiederhören.", base);
     vr.hangup();
     return new Response(vr.toString(), { headers: { "Content-Type": "text/xml" } });
   }
@@ -185,7 +184,7 @@ if (!userText) {
   const g = vr.gather({
     input: ["speech"],
     language: "de-DE",
-    action: `${BASE}/api/call/handle`,
+    action: `${base}/api/call/handle`,
     method: "POST",
     speechTimeout: "auto",
     timeout: 6,
@@ -197,7 +196,7 @@ if (!userText) {
       ? "Entschuldigung, ich habe nichts gehört. Können Sie das bitte nochmal sagen?"
       : "Ich höre Sie leider nicht. Bitte sprechen Sie einmal deutlich – was kann ich für Sie tun?";
 
-  sayWithTTS(g, msg);
+  sayWithTTS(g, msg, base);
   return new Response(vr.toString(), { headers: { "Content-Type": "text/xml" } });
 }
 try {
@@ -218,7 +217,7 @@ try {
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), 5000);
 
-      const r = await fetch(`${BASE}/api/gpt-receptionist`, {
+      const r = await fetch(`${base}/api/gpt-receptionist`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -247,7 +246,7 @@ if (r.ok) {
     }
 
 // Antwort ausspielen
-sayWithTTS(vr, reply);
+sayWithTTS(vr, reply, base);
 
 if (endCall) {
   vr.hangup();
@@ -259,7 +258,7 @@ if (endCall) {
  vr.gather({
   input: ["speech"],
   language: "de-DE",
-  action: `${BASE}/api/call/handle`,
+  action: `${base}/api/call/handle`,
   method: "POST",
   speechTimeout: "auto",
   timeout: 6,
@@ -276,7 +275,8 @@ return new Response(vr.toString(), { headers: { "Content-Type": "text/xml" } });
     const vr = new TwiML.VoiceResponse();
     sayWithTTS(
       vr,
-      "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut."
+      "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+      base
     );
     return new Response(vr.toString(), {
       headers: { "Content-Type": "text/xml" },

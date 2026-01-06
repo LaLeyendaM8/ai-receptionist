@@ -1,13 +1,7 @@
 // lib/googleOauth.ts
+import { getBaseUrl } from "./getBaseUrl";
+
 export function getRedirectUri(req: Request) {
-  // Reverse-Proxy Header (loca.lt) comes first
-  const proto = req.headers.get("x-forwarded-proto");
-  const host  = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
-
-  const base =
-    (proto && host)
-      ? `${proto}://${host}`
-      : (process.env.PUBLIC_BASE_URL || new URL(req.url).origin);
-
+  const base = getBaseUrl(req);
   return `${base}/api/google/oauth/callback`;
 }

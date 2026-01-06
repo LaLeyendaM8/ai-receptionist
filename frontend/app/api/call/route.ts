@@ -2,31 +2,30 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+import { getBaseUrl } from "@/lib/getBaseUrl";
 import { NextResponse, type NextRequest } from "next/server";
-import * as crypto from "crypto";
-import { twiml as TwiML } from "twilio";
+import { twiml as TwiML, validateRequest } from "twilio";
+
 
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN as string;
-const PUBLIC_BASE_URL =
-  process.env.PUBLIC_BASE_URL ||
-  process.env.NEXT_PUBLIC_APP_URL;
 
-function verifyTwilioSignature(req: NextRequest, body: Record<string, any>) {
-  try {
-    const sig = req.headers.get("x-twilio-signature") || "";
-    const url = `${PUBLIC_BASE_URL}/api/call`;
-    const payload = Object.keys(body)
-      .sort()
-      .reduce((acc, k) => acc + k + body[k], url);
-    const expected = crypto
-      .createHmac("sha1", TWILIO_AUTH_TOKEN)
-      .update(Buffer.from(payload, "utf-8"))
-      .digest("base64");
-    return expected === sig;
-  } catch {
-    return false;
-  }
+function verifyTwilioSignature(req: NextRequest, params: Record<string, string>) {
+  const signature = req.headers.get("x-twilio-signature") ?? "";
+  if (!signature) return false;
+
+  const base = getBaseUrl(req);
+
+  // Twilio signiert mit der exakten URL inkl. Querystring
+  const url = `${base}${req.nextUrl.pathname}${req.nextUrl.search}`;
+
+  return validateRequest(
+    process.env.TWILIO_AUTH_TOKEN as string,
+    signature,
+    url,
+    params
+  );
 }
+
 
 export async function GET() {
   // Healthcheck
@@ -38,7 +37,8 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const body: Record<string, any> = {};
   for (const [k, v] of form.entries()) body[k] = String(v);
-
+  const base = getBaseUrl(req);
+  
   // In Prod signaturprüfen (lokal off)
   if (process.env.NODE_ENV === "production") {
     const valid = verifyTwilioSignature(req, body);
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const base = process.env.PUBLIC_BASE_URL;
+
 
 const twiml = `
 <Response>
