@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { NextResponse } from "next/server";
-import { twiml as TwiML } from "twilio";
+import { twiml as TwiML , validateRequest } from "twilio";
 import { createServiceClient } from "@/lib/supabaseClients";
 import { ensureConversationState, incrementCounter, resetCounters } from "@/lib/conversation-state";
 
@@ -12,6 +12,19 @@ import { ensureConversationState, incrementCounter, resetCounters } from "@/lib/
 // ---------------------------------------------------------------------------
 
 const TTS_ENABLED = process.env.ENABLE_TTS !== "false";
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN as string;
+
+function verifyTwilioSignature(req: Request, params: Record<string, string>) {
+  const signature = req.headers.get("x-twilio-signature") ?? "";
+  if (!signature) return false;
+
+  // Wichtig: gleiche URL, die Twilio signiert (dein base + path + query)
+  const base = getBaseUrl(req);
+  const u = new URL(req.url);
+  const url = `${base}${u.pathname}${u.search}`;
+
+  return validateRequest(TWILIO_AUTH_TOKEN, signature, url, params);
+}
 
 type ClientProfile = {
   id: string;
@@ -118,6 +131,17 @@ export async function POST(req: Request) {
   const base = getBaseUrl(req);
   try {
     const params = await parseForm(req);
+        if (process.env.NODE_ENV === "production") {
+      if (!TWILIO_AUTH_TOKEN) {
+        // fail-closed in prod
+        return new Response("Server misconfigured", { status: 500 });
+      }
+
+      const valid = verifyTwilioSignature(req, params);
+      if (!valid) {
+        return new Response("Invalid Twilio signature", { status: 403 });
+      }
+    }
     const userText =
       params.SpeechResult || params.TranscriptionText || params.Digits || "";
     const callSid = params.CallSid as String | undefined;

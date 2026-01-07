@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { NextResponse, type NextRequest } from "next/server";
-import { twiml as TwiML, validateRequest } from "twilio";
+import { validateRequest } from "twilio";
 
 
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN as string;
@@ -19,7 +19,7 @@ function verifyTwilioSignature(req: NextRequest, params: Record<string, string>)
   const url = `${base}${req.nextUrl.pathname}${req.nextUrl.search}`;
 
   return validateRequest(
-    process.env.TWILIO_AUTH_TOKEN as string,
+    TWILIO_AUTH_TOKEN,
     signature,
     url,
     params
