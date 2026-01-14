@@ -1,68 +1,92 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
+import { cookies } from "next/headers";
+
 import { getBaseUrl } from "@/lib/getBaseUrl";
-import { createClients } from "@/lib/supabaseClients";
+import { createClients, createServiceClient } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const STATE_COOKIE = "gcal_oauth_state";
+
+function decodeState(stateStr: string) {
+  const raw = Buffer.from(stateStr, "base64url").toString("utf8");
+  return JSON.parse(raw) as { userId?: string; nonce?: string };
+}
+
 export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const code = url.searchParams.get("code");
-    const stateStr = url.searchParams.get("state");
-    if (!code) return NextResponse.json({ error: "missing code" }, { status: 400 });
+  const url = new URL(req.url);
+  const code = url.searchParams.get("code");
+  const stateStr = url.searchParams.get("state") ?? "";
 
-    const redirectUri = `${getBaseUrl(req)}/api/google/oauth/callback`;
-    const oauth2 = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID!,
-      process.env.GOOGLE_CLIENT_SECRET!,
-      redirectUri
-    );
+  if (!code) return NextResponse.json({ error: "missing_code" }, { status: 400 });
+  if (!stateStr) return NextResponse.json({ error: "missing_state" }, { status: 400 });
 
-    // 1) Code -> Tokens
-    const { tokens } = await oauth2.getToken({ code, redirect_uri: redirectUri });
-
-    // 2) User bestimmen (DEV_USER_ID muss uuid sein)
-    const supabase = await createClients();
-      const userId = await getCurrentUserId(supabase);
-          if (!userId) {
-            return NextResponse.json(
-              { error: "unauthenticated" },
-              { status: 401 }
-            );
-          }
-
-    // 3) Tokens mergen & speichern (refresh_token nie verlieren)
-    
-    const { data: existing } = await supabase
-      .from("google_tokens")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
-    const payload = {
-      user_id: userId,
-      access_token: tokens.access_token ?? existing?.access_token ?? null,
-      refresh_token: tokens.refresh_token ?? existing?.refresh_token ?? null,
-      expiry_date: tokens.expiry_date ?? existing?.expiry_date ?? null,
-      token_type: tokens.token_type ?? existing?.token_type ?? null,
-      scope: tokens.scope ?? existing?.scope ?? null,
-      raw: tokens as any,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error: upErr } = await supabase
-      .from("google_tokens")
-      .upsert(payload, { onConflict: "user_id" });
-
-    if (upErr) {
-      console.error("UPSERT ERROR:", upErr);
-      return NextResponse.json({ error: "db_upsert_failed", details: upErr.message }, { status: 500 });
-    }
-
-    // 4) zurück zur Testseite
-    return NextResponse.redirect(`${getBaseUrl(req)}/onboarding?calendar_connected=1`);
-  } catch (e: any) {
-    console.error("oauth callback error:", e?.response?.data || e);
-    return NextResponse.json({ error: "callback_failed" }, { status: 400 });
+  // ✅ must still be logged in (prevents account-linking)
+  const supabaseUser = await createClients();
+  const currentUserId = await getCurrentUserId(supabaseUser);
+  if (!currentUserId) {
+    return NextResponse.redirect(new URL("/login", req.url));
   }
+
+  // ✅ validate state
+  let state: { userId?: string; nonce?: string };
+  try {
+    state = decodeState(stateStr);
+  } catch {
+    return NextResponse.json({ error: "invalid_state" }, { status: 400 });
+  }
+
+  const cookieStore = await cookies();
+  const cookieNonce = cookieStore.get(STATE_COOKIE)?.value ?? "";
+
+  if (!state?.nonce || !cookieNonce || state.nonce !== cookieNonce) {
+    return NextResponse.json({ error: "state_nonce_mismatch" }, { status: 403 });
+  }
+
+  if (!state?.userId || state.userId !== currentUserId) {
+    return NextResponse.json({ error: "state_user_mismatch" }, { status: 403 });
+  }
+
+  // clear nonce cookie
+  cookieStore.set({
+    name: STATE_COOKIE,
+    value: "",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/google/oauth",
+    maxAge: 0,
+  });
+
+  const base = getBaseUrl(req);
+  const redirectUri = `${base}/api/google/oauth/callback`;
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return NextResponse.json({ error: "missing_google_env" }, { status: 500 });
+  }
+
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const { tokens } = await oauth2Client.getToken(code);
+
+  // store tokens (service client ok, we’re binding to currentUserId explicitly)
+  const supabase = createServiceClient();
+  const { error } = await supabase.from("google_tokens").upsert({
+    user_id: currentUserId,
+    access_token: tokens.access_token ?? null,
+    refresh_token: tokens.refresh_token ?? null,
+    scope: tokens.scope ?? null,
+    token_type: tokens.token_type ?? null,
+    expiry_date: tokens.expiry_date ?? null,
+  });
+
+  if (error) {
+    return NextResponse.json({ error: "token_store_failed", details: error.message }, { status: 500 });
+  }
+
+  return NextResponse.redirect(new URL("/settings/calendar?connected=1", req.url));
 }

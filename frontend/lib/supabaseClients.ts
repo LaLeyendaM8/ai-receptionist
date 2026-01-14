@@ -1,4 +1,5 @@
 // frontend/lib/supabaseClients.ts
+import "server-only";
 import { createServerClientTyped, type TypedSupabaseClient } from "./supabaseServer";
 import { createClient } from "@supabase/supabase-js";
 
