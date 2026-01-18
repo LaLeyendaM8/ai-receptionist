@@ -1,15 +1,12 @@
 // app/api/speak/route.ts
 import { NextResponse } from "next/server";
+import { verifyTtsToken } from "@/lib/ttsToken";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Standard-Voice-ID "Rachel"
 const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
-
-// ✅ Shared secret for internal calls (Twilio <Play> + optional internal POST)
-// Set in env: INTERNAL_TTS_TOKEN=...
-const INTERNAL_TTS_TOKEN = process.env.INTERNAL_TTS_TOKEN as string;
 
 // simple hard limits against cost-abuse
 const MAX_TEXT_CHARS = 500; // MVP: keep it tight
@@ -18,22 +15,6 @@ function clampText(t: unknown) {
   const s = (typeof t === "string" ? t : "").trim();
   if (!s) return "";
   return s.length > MAX_TEXT_CHARS ? s.slice(0, MAX_TEXT_CHARS) : s;
-}
-
-function isAuthorized(req: Request) {
-  // In dev: keep it usable
-  if (process.env.NODE_ENV !== "production") return true;
-
-  if (!INTERNAL_TTS_TOKEN) return false;
-
-  // Prefer query token (works for Twilio <Play>)
-  const url = new URL(req.url);
-  const qToken = url.searchParams.get("token") ?? "";
-
-  // Optional header token (works for server-to-server POST)
-  const hToken = req.headers.get("x-internal-token") ?? "";
-
-  return qToken === INTERNAL_TTS_TOKEN || hToken === INTERNAL_TTS_TOKEN;
 }
 
 async function synth(text: string, voiceId?: string) {
@@ -69,12 +50,27 @@ async function synth(text: string, voiceId?: string) {
 // ---- GET: Twilio <Play> ----
 export async function GET(req: Request) {
   try {
-    if (!isAuthorized(req)) {
-      return new Response("Forbidden", { status: 403 });
+    const { searchParams } = new URL(req.url);
+
+    let text = "";
+
+    if (process.env.NODE_ENV === "production") {
+      const token = searchParams.get("token");
+      if (!token) {
+        return new Response("Forbidden", { status: 403 });
+      }
+
+      const verifiedText = verifyTtsToken(token);
+      if (!verifiedText) {
+        return new Response("Forbidden", { status: 403 });
+      }
+
+      text = clampText(verifiedText);
+    } else {
+      // Dev: allow plain text for fast iteration
+      text = clampText(searchParams.get("text"));
     }
 
-    const { searchParams } = new URL(req.url);
-    const text = clampText(searchParams.get("text"));
     const voiceId = searchParams.get("voiceId") || undefined;
 
     if (!text) {
@@ -101,10 +97,10 @@ export async function GET(req: Request) {
   }
 }
 
-// ---- POST: internal server-to-server (optional) ----
+// ---- POST: internal server-to-server (optional, dev / tooling) ----
 export async function POST(req: Request) {
   try {
-    if (!isAuthorized(req)) {
+    if (process.env.NODE_ENV === "production") {
       return new Response("Forbidden", { status: 403 });
     }
 

@@ -1210,15 +1210,21 @@ export async function runAppointmentFlow(
       );
     }
 
-    const serviceText: string = nextAppointment.serviceName!;
-    const svc = await getServiceByMessage(supabase, clientId, serviceText || "");
+   const serviceText = (nextAppointment.serviceName ?? "").trim();
+if (!serviceText) {
+  return await needInfo(
+    "service",
+    "Für welche Leistung möchten Sie genau buchen? (z. B. Haarschnitt, Färben, Maniküre)"
+  );
+}
 
-    if (!svc) {
-      return await needInfo(
-        "service",
-        "Für welche Leistung möchten Sie genau buchen? (z. B. Haarschnitt, Färben, Maniküre)"
-      );
-    }
+const svc = await getServiceByMessage(supabase, clientId, serviceText);
+if (!svc) {
+  return await needInfo(
+    "service",
+    "Für welche Leistung möchten Sie genau buchen? (z. B. Haarschnitt, Färben, Maniküre)"
+  );
+}
 
     const durationMin = svc.durationMin ?? 30;
 

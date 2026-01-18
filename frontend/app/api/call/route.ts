@@ -33,7 +33,16 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  
+  const isProd = process.env.NODE_ENV === "production";
+
+if (isProd && !process.env.TWILIO_AUTH_TOKEN) {
+  console.error("TWILIO_AUTH_TOKEN missing in production");
+  return new Response("Server misconfigured", { status: 500 });
+}
+
   // Twilio sendet x-www-form-urlencoded
+
   const form = await req.formData();
   const body: Record<string, any> = {};
   for (const [k, v] of form.entries()) body[k] = String(v);

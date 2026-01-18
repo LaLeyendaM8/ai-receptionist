@@ -7,9 +7,9 @@ import {
   LayoutGrid,
   PhoneCall,
   CalendarDays,
-  Users,
   Settings,
   LogOut,
+  ClipboardList, // ✅ neu
 } from "lucide-react";
 
 type SidebarProps = {
@@ -20,7 +20,8 @@ const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutGrid },
   { href: "/dashboard/calls", label: "Calls", icon: PhoneCall },
   { href: "/dashboard/appointments", label: "Appointments", icon: CalendarDays },
-  { href: "/dashboard/clients", label: "Clients", icon: Users },
+  // ✅ Clients raus
+  { href: "/dashboard/handoffs", label: "Handoffs", icon: ClipboardList }, // ✅ neu
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

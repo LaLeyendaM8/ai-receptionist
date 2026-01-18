@@ -7,23 +7,25 @@ import { createClients, createServiceClient } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
 import { runAppointmentFlow } from "@/lib/callflow/appointment";
 
-
-
-export async function POST(req: Request) {
+export async function POST(req: Request): Promise<Response> {
   try {
+    // ✅ In prod: disable wrapper endpoint entirely
     if (process.env.NODE_ENV === "production") {
-  return new Response("Not found", { status: 404 });
-}
+      return new Response("Not found", { status: 404 });
+    }
 
-    const body = (await req.json()) as {
-      message: string;
+    const body = (await req.json().catch(() => null)) as {
+      message?: string;
       clientId?: string | null;
       sessionId?: string | null;
       intent?: string | null;
       parsed?: any;
-    };
+    } | null;
 
-    const { message, clientId: bodyClientId, sessionId, intent: brainIntent } = body;
+    const message = body?.message;
+    const bodyClientId = body?.clientId ?? null;
+    const sessionId = body?.sessionId ?? null;
+    const brainIntent = body?.intent ?? null;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "invalid_message" }, { status: 400 });
@@ -53,11 +55,15 @@ export async function POST(req: Request) {
         console.error("[APPOINTMENT] client load error (by clientId)", error);
         return NextResponse.json({ error: "client_load_failed" }, { status: 500 });
       }
-      if (!data) return NextResponse.json({ error: "client_not_found" }, { status: 404 });
+      if (!data) {
+        return NextResponse.json({ error: "client_not_found" }, { status: 404 });
+      }
       client = data;
     } else {
       const userId = await getCurrentUserId(supabase);
-      if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+      if (!userId) {
+        return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+      }
 
       const { data, error } = await supabase
         .from("clients")
@@ -69,7 +75,9 @@ export async function POST(req: Request) {
         console.error("[APPOINTMENT] client load error (by user)", error);
         return NextResponse.json({ error: "client_load_failed" }, { status: 500 });
       }
-      if (!data) return NextResponse.json({ error: "no_client_for_user" }, { status: 404 });
+      if (!data) {
+        return NextResponse.json({ error: "no_client_for_user" }, { status: 404 });
+      }
       client = data;
     }
 
@@ -78,8 +86,8 @@ export async function POST(req: Request) {
     const timezone = client.timezone || "Europe/Berlin";
     const staffEnabled = Boolean(client.staff_enabled);
 
-    // ✅ callflow
-    return await runAppointmentFlow({
+    // ✅ callflow (helper returns plain object) -> wrapper returns Response
+    const out = await runAppointmentFlow({
       supabase,
       clientId,
       ownerUserId,
@@ -89,11 +97,13 @@ export async function POST(req: Request) {
       sessionId,
       brainIntent,
     });
+
+    return NextResponse.json(out, { status: 200 });
   } catch (err: unknown) {
     console.error("[/api/ai/appointment] ERROR", err);
-    const message = err instanceof Error ? err.message : JSON.stringify(err, null, 2);
+    const msg = err instanceof Error ? err.message : JSON.stringify(err, null, 2);
     return NextResponse.json(
-      { status: "error", error: "internal_error", details: message },
+      { status: "error", error: "internal_error", details: msg },
       { status: 500 }
     );
   }

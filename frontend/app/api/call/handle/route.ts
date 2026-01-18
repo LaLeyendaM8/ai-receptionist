@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { NextResponse } from "next/server";
+import { createTtsToken } from "@/lib/ttsToken"
 import { twiml as TwiML, validateRequest } from "twilio";
 import { createServiceClient } from "@/lib/supabaseClients";
 import {
@@ -55,12 +56,15 @@ function sayWithTTS(target: any, text: string, base?: string) {
     return;
   }
 
+  // 🔐 Kurzlebigen, signierten Token erzeugen (Text ist Payload)
+  const token = createTtsToken(text);
+
   const u = new URL("/api/speak", base);
-  u.searchParams.set("text", text);
-  const tok = process.env.INTERNAL_TTS_TOKEN;
-  if (tok) u.searchParams.set("token", tok);
+  u.searchParams.set("token", token);
+
   target.play(u.toString());
 }
+
 
 /**
  * Begrüßung aus Client-Profil.

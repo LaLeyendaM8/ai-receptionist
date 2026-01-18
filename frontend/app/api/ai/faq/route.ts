@@ -6,13 +6,13 @@ import { createClients, createServiceClient } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
 import { runFaqFlow } from "@/lib/callflow/faq";
 
-export async function POST(req: Request) {
+export async function POST(req: Request): Promise<Response> {
   try {
     if (process.env.NODE_ENV === "production") {
-  return new Response("Not found", { status: 404 });
-}
+      return new Response("Not found", { status: 404 });
+    }
 
-    const body = await req.json();
+    const body = (await req.json().catch(() => null)) as any;
 
     const userQuestion: string | undefined = body?.message;
     const clientIdFromBody: string | null = body?.clientId ?? null;
@@ -33,12 +33,16 @@ export async function POST(req: Request) {
       }
     }
 
-    return await runFaqFlow({
+    const out = await runFaqFlow({
       supabase,
       message: userQuestion,
       clientId: clientIdFromBody,
       userId,
+      // optional – falls dein Type das will:
+      sessionId: body?.sessionId ?? null,
     });
+
+    return NextResponse.json(out, { status: 200 });
   } catch (e: any) {
     console.error("[/api/ai/faq] failed:", e);
     return NextResponse.json(

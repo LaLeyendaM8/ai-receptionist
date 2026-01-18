@@ -4,20 +4,24 @@ import { redirect } from "next/navigation";
 import { createClients } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
 import { CalendarClock, Check, X, MoreHorizontal } from "lucide-react";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
 function getStatusBadgeClasses(status: string | null | undefined) {
   const value = (status ?? "").toLowerCase();
 
-  if (value.includes("bestätigt") || value.includes("confirmed")) {
+  // ✅ MVP: eure echten Statuswerte
+  if (value === "booked") {
     return "bg-emerald-50 text-emerald-700";
   }
+  if (value === "cancelled") {
+    return "bg-rose-50 text-rose-700";
+  }
+
+  // optional für später
   if (value.includes("ausstehend") || value.includes("pending")) {
     return "bg-amber-50 text-amber-700";
-  }
-  if (value.includes("abgesagt") || value.includes("cancelled")) {
-    return "bg-rose-50 text-rose-700";
   }
 
   return "bg-slate-100 text-slate-700";
@@ -67,6 +71,26 @@ export default async function AppointmentsPage() {
 
   const clientId = client.id;
 
+  // ✅ Actions (MVP): Cancel funktioniert, Confirm erstmal disabled
+  async function cancelAppointmentAction(formData: FormData) {
+    "use server";
+
+    const id = String(formData.get("id") ?? "");
+    if (!id) return;
+
+    const supabase = await createClients();
+
+    // Safety: client scope
+    await supabase
+      .from("appointments")
+      .update({ status: "cancelled" })
+      .eq("id", id)
+      .eq("client_id", clientId);
+
+    revalidatePath("/dashboard/appointments");
+    revalidatePath("/dashboard");
+  }
+
   const { data: appointments } = await supabase
     .from("appointments")
     .select("*")
@@ -87,7 +111,10 @@ export default async function AppointmentsPage() {
     );
   }).length;
 
+  // „Diese Woche“: MVP -> einfach total count (wie bei dir)
   const weekTotal = rows.length;
+
+  // „Ausstehend“: solange ihr kein pending nutzt, ist das 0
   const openCount = rows.filter((a: any) => {
     const s = (a.status ?? "").toLowerCase();
     return s.includes("ausstehend") || s.includes("pending");
@@ -98,31 +125,35 @@ export default async function AppointmentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-[#1E293B]">
-            Appointments
-          </h1>
+          <h1 className="text-xl font-semibold text-[#1E293B]">Appointments</h1>
           <p className="mt-1 text-sm text-[#64748B]">
             Verwalte alle gebuchten Termine.
           </p>
         </div>
+
+        {/* MVP: Button disabled statt Fake */}
         <button
           type="button"
-          className="inline-flex items-center rounded-lg bg-[#3B82F6] px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#2563EB]"
+          disabled
+          className="inline-flex items-center rounded-lg bg-[#3B82F6]/60 px-4 py-2 text-xs font-medium text-white shadow-sm cursor-not-allowed"
+          title="Kommt bald"
         >
           + Neu anlegen
         </button>
       </div>
 
-      {/* Stat-Karten unten wie im Figma (Heute / Diese Woche / Ausstehend) */}
+      {/* Stat-Karten */}
       <section className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-[#E2E8F0] bg-white p-4 text-sm text-[#1E293B] shadow-sm">
           <p className="text-xs text-[#64748B]">Heute</p>
           <p className="mt-1 text-2xl font-semibold">{todayCount}</p>
         </div>
+
         <div className="rounded-2xl border border-[#E2E8F0] bg-white p-4 text-sm text-[#1E293B] shadow-sm">
           <p className="text-xs text-[#64748B]">Diese Woche</p>
           <p className="mt-1 text-2xl font-semibold">{weekTotal}</p>
         </div>
+
         <div className="rounded-2xl border border-[#E2E8F0] bg-white p-4 text-sm text-[#1E293B] shadow-sm">
           <p className="text-xs text-[#64748B]">Ausstehend</p>
           <p className="mt-1 text-2xl font-semibold">{openCount}</p>
@@ -149,6 +180,7 @@ export default async function AppointmentsPage() {
                 <th className="px-4 py-3 text-right">Aktionen</th>
               </tr>
             </thead>
+
             <tbody>
               {rows.length === 0 && (
                 <tr>
@@ -161,67 +193,98 @@ export default async function AppointmentsPage() {
                 </tr>
               )}
 
-              {rows.map((a: any) => (
-                <tr
-                  key={a.id}
-                  className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC]"
-                >
-                  <td className="px-4 py-3 align-top">
-                    <div className="flex flex-col text-sm text-[#1E293B]">
-                      <span>{a.customer_name ?? "Unbekannter Kunde"}</span>
-                      <span className="text-xs text-[#64748B]">
-                        {a.customer_phone ?? ""}
+              {rows.map((a: any) => {
+                const statusValue = (a.status ?? "").toLowerCase();
+                const isBooked = statusValue === "booked";
+                const isCancelled = statusValue === "cancelled";
+
+                return (
+                  <tr
+                    key={a.id}
+                    className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC]"
+                  >
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex flex-col text-sm text-[#1E293B]">
+                        <span>{a.customer_name ?? "Unbekannter Kunde"}</span>
+                        <span className="text-xs text-[#64748B]">
+                          {a.customer_phone ?? ""}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
+                      <div className="flex flex-col">
+                        <span>{formatDate(a.start_at)}</span>
+                        <span className="text-xs text-[#64748B]">
+                          {formatTime(a.start_at)} Uhr
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
+                      {a.title ?? "Termin"}
+                    </td>
+
+                    <td className="px-4 py-3 align-top">
+                      <span
+                        className={
+                          "inline-flex rounded-full px-3 py-1 text-xs font-medium " +
+                          getStatusBadgeClasses(a.status)
+                        }
+                      >
+                        {a.status ?? "Unbekannt"}
                       </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
-                    <div className="flex flex-col">
-                      <span>{formatDate(a.start_at)}</span>
-                      <span className="text-xs text-[#64748B]">
-                        {formatTime(a.start_at)} Uhr
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
-                    {a.title ?? "Termin"}
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <span
-                      className={
-                        "inline-flex rounded-full px-3 py-1 text-xs font-medium " +
-                        getStatusBadgeClasses(a.status)
-                      }
-                    >
-                      {a.status ?? "Unbekannt"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 align-top text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-                        title="Bestätigen"
-                      >
-                        <Check className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100"
-                        title="Absagen"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
-                        title="Mehr"
-                      >
-                        <MoreHorizontal className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+
+                    <td className="px-4 py-3 align-top text-right">
+                      <div className="inline-flex items-center gap-2">
+                        {/* ✅ Confirm (disabled MVP, weil Auto-Confirm) */}
+                        <button
+                          type="button"
+                          disabled
+                          className={[
+                            "inline-flex h-8 w-8 items-center justify-center rounded-full",
+                            "bg-emerald-50 text-emerald-600",
+                            "opacity-50 cursor-not-allowed",
+                          ].join(" ")}
+                          title={
+                            isBooked
+                              ? "Bereits bestätigt"
+                              : "Kommt bald (Approve-Workflow)"
+                          }
+                        >
+                          <Check className="h-3 w-3" />
+                        </button>
+
+                        {/* ❌ Cancel (funktional) */}
+                        <form action={cancelAppointmentAction}>
+                          <input type="hidden" name="id" value={a.id} />
+                          <button
+                            type="submit"
+                            disabled={isCancelled}
+                            className={[
+                              "inline-flex h-8 w-8 items-center justify-center rounded-full",
+                              "bg-rose-50 text-rose-600 hover:bg-rose-100",
+                              isCancelled ? "opacity-50 cursor-not-allowed" : "",
+                            ].join(" ")}
+                            title={isCancelled ? "Bereits abgesagt" : "Absagen"}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </form>
+
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
+                          title="Mehr (kommt später)"
+                        >
+                          <MoreHorizontal className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
