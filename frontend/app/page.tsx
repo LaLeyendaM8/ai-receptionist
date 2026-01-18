@@ -552,7 +552,7 @@ export default function HomePage() {
                 disabled={loading}
                 className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-blue-700 shadow-md hover:bg-slate-100 disabled:opacity-70"
               >
-                {loading ? "Weiterleitung zu Stripe..." : "Kostenlos starten"}
+                {loading ? "Weiterleitung zu Stripe..." : "Jetzt starten"}
               </button>
               <a
                 href="#features"
@@ -564,61 +564,73 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* FOOTER */}
-        <footer className="border-t border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-6 py-10">
-            <div className="grid gap-8 md:grid-cols-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-white">
-                    📞
-                  </div>
-                  <span className="font-semibold tracking-tight">
-                    ReceptaAI
-                  </span>
-                </div>
-                <p className="text-sm text-slate-600">
-                  Dein KI-Telefonassistent für 24/7 Kundenbetreuung.
-                  DSGVO-konform und mehrsprachig.
-                </p>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-slate-900">Produkt</p>
-                <a href="#features" className="block text-slate-600 hover:text-slate-900">
-                  Features
-                </a>
-                <a href="#pricing" className="block text-slate-600 hover:text-slate-900">
-                  Preise
-                </a>
-                <span className="block text-slate-400">Integration</span>
-                <span className="block text-slate-400">API</span>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-slate-900">Unternehmen</p>
-                <span className="block text-slate-400">Über uns</span>
-                <Link href="/impressum" className="block text-slate-600 hover:text-slate-900">
-                  Impresum
-                </Link>
-                <span className="block text-slate-400">Kontakt</span>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-slate-900">Kontakt</p>
-                <p className="text-slate-600">Michael F.E. Eraso Horn</p>
-                <p className="text-slate-600">info@receptaai.de</p>
-                <p className="text-slate-600">+49 177 1572418</p>
-                <p className="text-slate-600">Neu-Ulm, Deutschland</p>
-              </div>
-            </div>
-
-            <div className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-400">
-              © {new Date().getFullYear()} ReceptaAI by Inhaber: Michael F.E. Eraso Horn. Alle Rechte vorbehalten.
-              Made with ♥ in Germany.
-            </div>
+{/* FOOTER */}
+<footer className="border-t border-slate-200 bg-white">
+  <div className="mx-auto max-w-6xl px-6 py-10">
+    <div className="grid gap-8 md:grid-cols-4">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-white">
+            📞
           </div>
-        </footer>
+          <span className="font-semibold tracking-tight">ReceptaAI</span>
+        </div>
+        <p className="text-sm text-slate-600">
+          Dein KI-Telefonassistent für 24/7 Kundenbetreuung – DSGVO-konform und mehrsprachig.
+        </p>
+      </div>
+
+      <div className="space-y-2 text-sm">
+        <p className="font-semibold text-slate-900">Produkt</p>
+        <a href="#features" className="block text-slate-600 hover:text-slate-900">
+          Features
+        </a>
+        <a href="#pricing" className="block text-slate-600 hover:text-slate-900">
+          Preise
+        </a>
+        <a href="#faq" className="block text-slate-600 hover:text-slate-900">
+          FAQ
+        </a>
+        <Link href="/login" className="block text-slate-600 hover:text-slate-900">
+          Login
+        </Link>
+      </div>
+
+      <div className="space-y-2 text-sm">
+        <p className="font-semibold text-slate-900">Rechtliches</p>
+        <Link href="/impressum" className="block text-slate-600 hover:text-slate-900">
+          Impressum
+        </Link>
+        <Link href="/datenschutz" className="block text-slate-600 hover:text-slate-900">
+          Datenschutz
+        </Link>
+        <Link href="/agb" className="block text-slate-600 hover:text-slate-900">
+          AGB (B2B)
+        </Link>
+        <Link href="/kontakt" className="block text-slate-600 hover:text-slate-900">
+          Kontakt
+        </Link>
+      </div>
+
+      <div className="space-y-2 text-sm">
+        <p className="font-semibold text-slate-900">Kontakt</p>
+        <p className="text-slate-600">Michael F. E. Eraso Horn</p>
+        <a className="block text-slate-600 hover:text-slate-900" href="mailto:info@receptaai.de">
+          info@receptaai.de
+        </a>
+        <a className="block text-slate-600 hover:text-slate-900" href="tel:+491771572418">
+          +49 177 1572418
+        </a>
+        <p className="text-slate-600">Neu-Ulm, Deutschland</p>
+      </div>
+    </div>
+
+    <div className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-400">
+      © {new Date().getFullYear()} ReceptaAI. Alle Rechte vorbehalten.
+    </div>
+  </div>
+</footer>
+
       </main>
     </div>
   );

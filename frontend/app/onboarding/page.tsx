@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import GoogleCalendarConnect from "./GoogleCalendarConnect";
+import GoogleCalendarConnect from "../components/GoogleCalendarConnect";
 
 type ClientForm = {
   name: string;
@@ -357,157 +357,227 @@ export default function OnboardingPage() {
           <GoogleCalendarConnect />
 
           {/* Öffnungszeiten */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Öffnungszeiten
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Diese Zeiten nutzt die AI, um verfügbare Termine zu finden.
-            </p>
+<section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+  <h2 className="text-lg font-semibold text-slate-900">Öffnungszeiten</h2>
+  <p className="mt-1 text-sm text-slate-500">
+    Diese Zeiten nutzt die AI, um verfügbare Termine zu finden.
+  </p>
 
-            <div className="mt-4 space-y-3">
-              {hours.map((h, idx) => (
-                <div
-                  key={h.weekday}
-                  className="grid items-center gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.3fr)_auto]"
-                >
-                  <span className="text-sm text-slate-600">
-                    {WEEKDAYS[h.weekday]}
-                  </span>
+  {/* Column labels (desktop) */}
+  <div className="mt-6 hidden grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_auto] gap-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 md:grid">
+    <span>Tag</span>
+    <span>Von</span>
+    <span>Bis</span>
+    <span className="text-right">Geschlossen</span>
+  </div>
 
-                  <input
-                    type="time"
-                    value={h.open}
-                    disabled={h.closed}
-                    onChange={(e) =>
-                      updateHour(idx, { open: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6] disabled:cursor-not-allowed disabled:bg-slate-100"
-                  />
+  <div className="mt-3 space-y-3">
+    {hours.map((h, idx) => (
+      <div
+        key={h.weekday}
+        className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 md:border-0 md:bg-transparent md:p-0"
+      >
+        <div className="grid items-center gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_auto]">
+          {/* Day */}
+          <div className="space-y-1">
+            <span className="text-xs font-medium text-slate-600 md:hidden">
+              Tag
+            </span>
+            <span className="text-sm text-slate-700">
+              {WEEKDAYS[h.weekday]}
+            </span>
+          </div>
 
-                  <input
-                    type="time"
-                    value={h.close}
-                    disabled={h.closed}
-                    onChange={(e) =>
-                      updateHour(idx, { close: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6] disabled:cursor-not-allowed disabled:bg-slate-100"
-                  />
+          {/* Open */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-600 md:hidden">
+              Von
+            </label>
+            <input
+              type="time"
+              value={h.open}
+              disabled={h.closed}
+              onChange={(e) => updateHour(idx, { open: e.target.value })}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#3B82F6] disabled:cursor-not-allowed disabled:bg-slate-100"
+            />
+          </div>
 
-                  <label className="inline-flex items-center gap-2 text-xs text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={h.closed}
-                      onChange={(e) =>
-                        updateHour(idx, { closed: e.target.checked })
-                      }
-                      className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
-                    />
-                    Geschlossen
-                  </label>
-                </div>
-              ))}
-            </div>
-          </section>
+          {/* Close */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-600 md:hidden">
+              Bis
+            </label>
+            <input
+              type="time"
+              value={h.close}
+              disabled={h.closed}
+              onChange={(e) => updateHour(idx, { close: e.target.value })}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#3B82F6] disabled:cursor-not-allowed disabled:bg-slate-100"
+            />
+          </div>
+
+          {/* Closed toggle */}
+          <div className="flex items-center justify-between md:justify-end">
+            <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={h.closed}
+                onChange={(e) => updateHour(idx, { closed: e.target.checked })}
+                className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
+              />
+              Geschlossen
+            </label>
+          </div>
+        </div>
+
+        {/* Subtle helper for closed days (mobile only) */}
+        {h.closed && (
+          <p className="mt-2 text-xs text-slate-400 md:hidden">
+            Dieser Tag wird bei Terminbuchungen übersprungen.
+          </p>
+        )}
+      </div>
+    ))}
+  </div>
+</section>
+
 
           {/* Services */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Services
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Leistungen, die für Terminbuchungen zur Verfügung stehen.
-                </p>
-              </div>
+<section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+  <div className="flex items-start justify-between gap-4">
+    <div>
+      <h2 className="text-lg font-semibold text-slate-900">Services</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Leistungen, die für Terminbuchungen zur Verfügung stehen.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      onClick={() =>
+        setServices((prev) => [
+          ...prev,
+          { name: "", durationMin: 30, price: 0, active: true },
+        ])
+      }
+      className="text-sm font-medium text-[#3B82F6] hover:underline"
+    >
+      + Service hinzufügen
+    </button>
+  </div>
+
+  {/* Column labels (desktop) */}
+  <div className="mt-6 hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 md:grid">
+    <span>Name</span>
+    <span>Dauer</span>
+    <span>Preis</span>
+    <span className="text-right">Status</span>
+  </div>
+
+  <div className="mt-3 space-y-3">
+    {services.map((s, idx) => (
+      <div
+        key={idx}
+        className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 md:border-0 md:bg-transparent md:p-0"
+      >
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
+          {/* Name */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-600 md:hidden">
+              Name
+            </label>
+            <input
+              type="text"
+              placeholder="z.B. Beratung, Haarschnitt, Erstgespräch"
+              value={s.name}
+              onChange={(e) => updateService(idx, { name: e.target.value })}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+            />
+          </div>
+
+          {/* Dauer */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-600 md:hidden">
+              Dauer (Minuten)
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min={5}
+                step={5}
+                inputMode="numeric"
+                placeholder="30"
+                value={s.durationMin}
+                onChange={(e) =>
+                  updateService(idx, { durationMin: Number(e.target.value) || 0 })
+                }
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-sm outline-none focus:border-[#3B82F6]"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
+                Min
+              </span>
+            </div>
+          </div>
+
+          {/* Preis */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-600 md:hidden">
+              Preis (EUR)
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">
+                €
+              </span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                inputMode="decimal"
+                placeholder="30"
+                value={s.price}
+                onChange={(e) =>
+                  updateService(idx, { price: Number(e.target.value) || 0 })
+                }
+                className="w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+              />
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between gap-3 md:justify-end">
+            <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={s.active}
+                onChange={(e) => updateService(idx, { active: e.target.checked })}
+                className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
+              />
+              Aktiv
+            </label>
+
+            {services.length > 1 && (
               <button
                 type="button"
                 onClick={() =>
-                  setServices((prev) => [
-                    ...prev,
-                    { name: "", durationMin: 30, price: 0, active: true },
-                  ])
+                  setServices((prev) => prev.filter((_, i) => i !== idx))
                 }
-                className="text-sm font-medium text-[#3B82F6] hover:underline"
+                className="text-xs text-slate-400 hover:text-rose-500"
               >
-                + Service hinzufügen
+                Entfernen
               </button>
-            </div>
+            )}
+          </div>
+        </div>
 
-            <div className="mt-4 space-y-3">
-              {services.map((s, idx) => (
-                <div
-                  key={idx}
-                  className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
-                >
-                  <input
-                    type="text"
-                    placeholder="z.B. Beratung"
-                    value={s.name}
-                    onChange={(e) =>
-                      updateService(idx, { name: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
-                  />
-                  <input
-                    type="number"
-                    min={5}
-                    step={5}
-                    placeholder="Dauer (Min.)"
-                    value={s.durationMin}
-                    onChange={(e) =>
-                      updateService(idx, {
-                        durationMin: Number(e.target.value) || 0,
-                      })
-                    }
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    placeholder="Preis (€)"
-                    value={s.price}
-                    onChange={(e) =>
-                      updateService(idx, {
-                        price: Number(e.target.value) || 0,
-                      })
-                    }
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
-                  />
+        {/* tiny helper (optional, subtle) */}
+        <p className="mt-2 text-xs text-slate-400 md:hidden">
+          Tipp: Dauer zB in 30-Minuten-Schritten, Preis optional (0 = nicht anzeigen).
+        </p>
+      </div>
+    ))}
+  </div>
+</section>
 
-                  <div className="flex items-center justify-end gap-3">
-                    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={s.active}
-                        onChange={(e) =>
-                          updateService(idx, { active: e.target.checked })
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
-                      />
-                      Aktiv
-                    </label>
-                    {services.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setServices((prev) =>
-                            prev.filter((_, i) => i !== idx)
-                          )
-                        }
-                        className="text-xs text-slate-400 hover:text-rose-500"
-                      >
-                        Entfernen
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
 
           {/* Mitarbeiter */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
