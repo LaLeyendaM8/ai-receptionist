@@ -2,20 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import {
-  Building2,
-  Clock,
-  ShoppingBag,
-  MessageCircle,
-  PlugZap,
-  Mic,
-  Brain,
-  LifeBuoy,
-} from "lucide-react";
+import SettingsEditor from "./SettingsEditor";
+import { Building2, PlugZap, Brain, Mic, LifeBuoy } from "lucide-react";
 import { createServerClientTyped } from "@/lib/supabaseServer";
 import { getCurrentUserId } from "@/lib/authServer";
-
-// ✅ shared Google connect component (aus /app/components)
 import GoogleCalendarConnect from "@/app/components/GoogleCalendarConnect";
 
 export const dynamic = "force-dynamic";
@@ -33,58 +23,6 @@ type ClientRow = {
   ai_enabled: boolean | null;
   staff_enabled: boolean | null;
 };
-
-type BusinessHourRow = {
-  id: string;
-  client_id: string;
-  weekday: number; // 0..6
-  open_min: number;
-  close_min: number;
-  is_closed: boolean | null;
-};
-
-type ServiceRow = {
-  id: string;
-  client_id: string;
-  title: string;
-  duration_min: number;
-  price_cents: number | null;
-  active: boolean | null;
-};
-
-type FaqRow = {
-  id: string;
-  client_id: string;
-  question: string;
-  answer: string;
-  active: boolean | null;
-};
-
-// ---------- helpers ----------
-function timeToMinutes(hhmm: string) {
-  const t = (hhmm ?? "").trim();
-  if (!t) return 0;
-  const [hh, mm] = t.split(":").map((x) => Number(x));
-  if (Number.isNaN(hh) || Number.isNaN(mm)) return 0;
-  return hh * 60 + mm;
-}
-
-function minutesToTime(min: number) {
-  const m = Math.max(0, Math.floor(min ?? 0));
-  const hh = Math.floor(m / 60);
-  const mm = m % 60;
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-}
-
-const WEEKDAYS: { label: string; weekday: number }[] = [
-  { label: "Sonntag", weekday: 0 },
-  { label: "Montag", weekday: 1 },
-  { label: "Dienstag", weekday: 2 },
-  { label: "Mittwoch", weekday: 3 },
-  { label: "Donnerstag", weekday: 4 },
-  { label: "Freitag", weekday: 5 },
-  { label: "Samstag", weekday: 6 },
-];
 
 // ---------- auth / client ----------
 async function getClientStrict() {
@@ -125,7 +63,6 @@ export async function saveCompanyProfileAction(formData: FormData) {
     return;
   }
 
-  // ✅ map auf reale clients columns aus deiner DB (Screenshot)
   const name = String(formData.get("name") ?? "").trim() || null;
   const industry = String(formData.get("industry") ?? "").trim() || null;
   const phone = String(formData.get("phone") ?? "").trim() || null;
@@ -136,14 +73,7 @@ export async function saveCompanyProfileAction(formData: FormData) {
 
   const { error: updErr } = await supabase
     .from("clients")
-    .update({
-      name,
-      industry,
-      phone,
-      email,
-      notification_email,
-      timezone,
-    })
+    .update({ name, industry, phone, email, notification_email, timezone })
     .eq("id", client.id);
 
   if (updErr) {
@@ -175,13 +105,13 @@ export async function saveBusinessHoursAction(formData: FormData) {
   const weekdays = formData.getAll("bh_weekday").map((v) => Number(v));
   const openTimes = formData.getAll("bh_open").map((v) => String(v));
   const closeTimes = formData.getAll("bh_close").map((v) => String(v));
-  const closedFlags = formData.getAll("bh_closed").map((v) => String(v) === "1");
+  const closedFlags = formData
+    .getAll("bh_closed")
+    .map((v) => String(v) === "1");
 
   const rows = weekdays.map((weekday, i) => {
     const is_closed = closedFlags[i] ?? false;
 
-    // ⚠️ deine Tabelle hat open_min/close_min NOT NULL (laut Screenshot),
-    // darum bei "geschlossen" -> 0/0 speichern
     const open_min = is_closed ? 0 : timeToMinutes(openTimes[i] ?? "09:00");
     const close_min = is_closed ? 0 : timeToMinutes(closeTimes[i] ?? "17:00");
 
@@ -225,13 +155,14 @@ export async function saveServicesAction(formData: FormData) {
   }
 
   const ids = formData.getAll("svc_id").map((v) => String(v || ""));
-  const titles = formData.getAll("svc_title").map((v) => String(v || "").trim());
+  const titles = formData
+    .getAll("svc_title")
+    .map((v) => String(v || "").trim());
   const duration = formData.getAll("svc_duration").map((v) => Number(v || 0));
   const price = formData.getAll("svc_price").map((v) => String(v || ""));
   const active = formData.getAll("svc_active").map((v) => String(v) === "1");
   const del = formData.getAll("svc_delete").map((v) => String(v) === "1");
 
-  // delete first
   const deleteIds = ids.filter((id, i) => id && del[i]);
   if (deleteIds.length > 0) {
     const { error: delErr } = await supabase
@@ -246,7 +177,6 @@ export async function saveServicesAction(formData: FormData) {
     }
   }
 
-  // upsert others (exclude deleted / empty titles)
   const upsertRows = ids
     .map((id, i) => {
       if (del[i]) return null;
@@ -257,7 +187,9 @@ export async function saveServicesAction(formData: FormData) {
 
       const priceStr = (price[i] ?? "").trim();
       const priceNum = priceStr ? Number(priceStr) : NaN;
-      const price_cents = Number.isFinite(priceNum) ? Math.round(priceNum * 100) : null;
+      const price_cents = Number.isFinite(priceNum)
+        ? Math.round(priceNum * 100)
+        : null;
 
       const row: any = {
         client_id: client.id,
@@ -273,7 +205,10 @@ export async function saveServicesAction(formData: FormData) {
     .filter(Boolean) as any[];
 
   if (upsertRows.length > 0) {
-    const { error: upsertErr } = await supabase.from("services").upsert(upsertRows);
+    const { error: upsertErr } = await supabase
+      .from("services")
+      .upsert(upsertRows);
+
     if (upsertErr) {
       console.error("[SETTINGS] saveServicesAction upsert error", upsertErr);
       return;
@@ -302,7 +237,9 @@ export async function saveFaqsAction(formData: FormData) {
   }
 
   const ids = formData.getAll("faq_id").map((v) => String(v || ""));
-  const questions = formData.getAll("faq_q").map((v) => String(v || "").trim());
+  const questions = formData
+    .getAll("faq_q")
+    .map((v) => String(v || "").trim());
   const answers = formData.getAll("faq_a").map((v) => String(v || "").trim());
   const active = formData.getAll("faq_active").map((v) => String(v) === "1");
   const del = formData.getAll("faq_delete").map((v) => String(v) === "1");
@@ -340,7 +277,10 @@ export async function saveFaqsAction(formData: FormData) {
     .filter(Boolean) as any[];
 
   if (upsertRows.length > 0) {
-    const { error: upsertErr } = await supabase.from("client_faqs").upsert(upsertRows);
+    const { error: upsertErr } = await supabase
+      .from("client_faqs")
+      .upsert(upsertRows);
+
     if (upsertErr) {
       console.error("[SETTINGS] saveFaqsAction upsert error", upsertErr);
       return;
@@ -350,7 +290,6 @@ export async function saveFaqsAction(formData: FormData) {
   revalidatePath("/dashboard/settings");
 }
 
-// --- Server-Action: AI an/aus schalten ---
 export async function toggleAIAction() {
   "use server";
 
@@ -382,7 +321,6 @@ export async function toggleAIAction() {
   revalidatePath("/dashboard/settings");
 }
 
-// --- Server-Action: Staff-Logik an/aus schalten ---
 export async function toggleStaffAction() {
   "use server";
 
@@ -414,6 +352,15 @@ export async function toggleStaffAction() {
   revalidatePath("/dashboard/settings");
 }
 
+// ---------- helpers (kept because actions use them) ----------
+function timeToMinutes(hhmm: string) {
+  const t = (hhmm ?? "").trim();
+  if (!t) return 0;
+  const [hh, mm] = t.split(":").map((x) => Number(x));
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return 0;
+  return hh * 60 + mm;
+}
+
 // ---------- page ----------
 export default async function SettingsPage() {
   const supabase = await createServerClientTyped();
@@ -441,12 +388,6 @@ export default async function SettingsPage() {
         .order("created_at", { ascending: true }),
     ]);
 
-  const bhMap = new Map<number, BusinessHourRow>();
-  (businessHours ?? []).forEach((r: any) => bhMap.set(r.weekday, r as BusinessHourRow));
-
-  const serviceRows = (services ?? []) as any as ServiceRow[];
-  const faqRows = (faqs ?? []) as any as FaqRow[];
-
   const twilioNumber = client.twilio_number ?? null;
 
   return (
@@ -473,7 +414,10 @@ export default async function SettingsPage() {
           </div>
         </div>
 
-        <form action={saveCompanyProfileAction} className="grid gap-6 md:grid-cols-2">
+        <form
+          action={saveCompanyProfileAction}
+          className="grid gap-6 md:grid-cols-2"
+        >
           <label className="space-y-2">
             <span className="text-xs font-medium uppercase tracking-wide text-[#64748B]">
               Firmenname
@@ -486,7 +430,7 @@ export default async function SettingsPage() {
             />
           </label>
 
-          {/* ✅ Twilio Nummer anzeigen (read-only) */}
+          {/* Twilio Nummer (read-only) */}
           <label className="space-y-2">
             <span className="text-xs font-medium uppercase tracking-wide text-[#64748B]">
               Twilio Nummer
@@ -578,7 +522,7 @@ export default async function SettingsPage() {
         </form>
       </section>
 
-      {/* Google Integration (identisch wie Onboarding) */}
+      {/* Google Integration */}
       <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#3B82F6]">
@@ -587,278 +531,24 @@ export default async function SettingsPage() {
           <div>
             <h2 className="text-sm font-medium text-[#1E293B]">Integrationen</h2>
             <p className="text-xs text-[#64748B]">
-              Verbinde deinen Kalender, damit Termine & Blockzeiten berücksichtigt werden.
+              Verbinde deinen Kalender, damit Termine & Blockzeiten
+              berücksichtigt werden.
             </p>
           </div>
         </div>
 
-        {/* ✅ Client Component */}
         <GoogleCalendarConnect />
       </section>
 
-      {/* Öffnungszeiten (DB-bound) */}
-      <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#10B981]">
-            <Clock className="h-4 w-4 text-white" />
-          </div>
-          <div>
-            <h2 className="text-sm font-medium text-[#1E293B]">Öffnungszeiten</h2>
-            <p className="text-xs text-[#64748B]">
-              Wird für Terminfindung genutzt.
-            </p>
-          </div>
-        </div>
-
-        <form action={saveBusinessHoursAction} className="space-y-3">
-          {WEEKDAYS.map(({ label, weekday }) => {
-            const row = bhMap.get(weekday);
-            const isClosed = !!row?.is_closed;
-
-            const open = row ? minutesToTime(row.open_min) : "09:00";
-            const close = row ? minutesToTime(row.close_min) : "17:00";
-
-            return (
-              <div
-                key={weekday}
-                className="grid items-center gap-3 rounded-xl bg-[#F8FAFC] px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
-              >
-                <input type="hidden" name="bh_weekday" value={weekday} />
-
-                <div className="text-sm font-medium text-[#1E293B]">{label}</div>
-
-                <input
-                  name="bh_open"
-                  type="time"
-                  defaultValue={open}
-                  disabled={isClosed}
-                  className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
-                />
-
-                <input
-                  name="bh_close"
-                  type="time"
-                  defaultValue={close}
-                  disabled={isClosed}
-                  className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
-                />
-
-                <label className="inline-flex items-center gap-2 text-xs text-[#64748B]">
-                  {/* checkbox -> wir schicken zusätzlich hidden, damit immer ein Wert kommt */}
-                  <input type="hidden" name="bh_closed" value={isClosed ? "1" : "0"} />
-                  <input
-                    type="checkbox"
-                    defaultChecked={isClosed}
-                    onChange={(e) => {
-                      // nur damit Browser UI passt – Server bekommt den hidden default.
-                      // MVP: ohne JS kann hidden nicht updated werden, aber:
-                      // => wir lösen das MVP-clean: wenn du togglen willst, mach’s später client-side.
-                    }}
-                    disabled
-                    className="h-4 w-4 rounded border-slate-300 text-[#3B82F6]"
-                    title="MVP: Closed Toggle kommt als Mini-Client später (wenn du willst)"
-                  />
-                  Geschlossen (MVP: toggle später)
-                </label>
-              </div>
-            );
-          })}
-
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-[#10B981] px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#059669]"
-            >
-              Öffnungszeiten speichern
-            </button>
-          </div>
-
-          <p className="text-[11px] text-[#64748B]">
-            Hinweis: Für MVP speichern wir Zeiten. “Geschlossen” Toggle können wir als Mini-Client-Komponente nachziehen.
-          </p>
-        </form>
-      </section>
-
-      {/* Services (DB-bound) */}
-      <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#3B82F6]">
-            <ShoppingBag className="h-4 w-4 text-white" />
-          </div>
-          <div>
-            <h2 className="text-sm font-medium text-[#1E293B]">Services</h2>
-            <p className="text-xs text-[#64748B]">
-              Leistungen, die buchbar sind.
-            </p>
-          </div>
-        </div>
-
-        <form action={saveServicesAction} className="space-y-3">
-          {serviceRows.map((s) => (
-            <div
-              key={s.id}
-              className="grid gap-3 rounded-xl bg-[#F8FAFC] px-4 py-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
-            >
-              <input type="hidden" name="svc_id" value={s.id} />
-              <input
-                name="svc_title"
-                defaultValue={s.title ?? ""}
-                placeholder="Service"
-                className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none"
-              />
-              <input
-                name="svc_duration"
-                type="number"
-                min={10}
-                step={5}
-                defaultValue={s.duration_min ?? 30}
-                className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none"
-              />
-              <input
-                name="svc_price"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={s.price_cents != null ? String(Math.round(s.price_cents / 100)) : ""}
-                placeholder="Preis (€)"
-                className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none"
-              />
-
-              <div className="flex items-center justify-end gap-3">
-                <input type="hidden" name="svc_active" value={(s.active ?? true) ? "1" : "0"} />
-                <span className="text-xs text-[#64748B]">
-                  Aktiv: {(s.active ?? true) ? "Ja" : "Nein"} (MVP Toggle später)
-                </span>
-                <label className="inline-flex items-center gap-2 text-xs text-[#64748B]">
-                  <input type="hidden" name="svc_delete" value="0" />
-                  <input
-                    type="checkbox"
-                    onChange={() => {}}
-                    disabled
-                    className="h-4 w-4 rounded border-slate-300"
-                    title="MVP: Delete Toggle später (oder wir machen es direkt als Client-Komponente)"
-                  />
-                  Löschen (MVP später)
-                </label>
-              </div>
-            </div>
-          ))}
-
-          {/* 1x Add Row (MVP ohne JS) */}
-          <div className="grid gap-3 rounded-xl border border-dashed border-[#E2E8F0] bg-white px-4 py-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-            <input type="hidden" name="svc_id" value="" />
-            <input
-              name="svc_title"
-              placeholder="Neuer Service (optional)"
-              className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm outline-none"
-            />
-            <input
-              name="svc_duration"
-              type="number"
-              min={10}
-              step={5}
-              defaultValue={30}
-              className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm outline-none"
-            />
-            <input
-              name="svc_price"
-              type="number"
-              min={0}
-              step={1}
-              placeholder="Preis (€)"
-              className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm outline-none"
-            />
-            <div className="flex items-center justify-end gap-3">
-              <input type="hidden" name="svc_active" value="1" />
-              <input type="hidden" name="svc_delete" value="0" />
-              <span className="text-xs text-[#64748B]">Wird beim Speichern erstellt</span>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-[#10B981] px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#059669]"
-            >
-              Services speichern
-            </button>
-          </div>
-        </form>
-      </section>
-
-      {/* FAQ (DB-bound) */}
-      <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-500">
-            <MessageCircle className="h-4 w-4 text-white" />
-          </div>
-          <div>
-            <h2 className="text-sm font-medium text-[#1E293B]">FAQ-Bausteine</h2>
-            <p className="text-xs text-[#64748B]">
-              Antworten, die die AI direkt nutzen kann.
-            </p>
-          </div>
-        </div>
-
-        <form action={saveFaqsAction} className="space-y-3">
-          {faqRows.map((f) => (
-            <div key={f.id} className="space-y-2 rounded-xl bg-[#F8FAFC] p-4">
-              <input type="hidden" name="faq_id" value={f.id} />
-              <input
-                name="faq_q"
-                defaultValue={f.question ?? ""}
-                placeholder="Frage"
-                className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none"
-              />
-              <textarea
-                name="faq_a"
-                defaultValue={f.answer ?? ""}
-                placeholder="Antwort"
-                rows={2}
-                className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none"
-              />
-
-              <div className="flex items-center justify-end gap-3">
-                <input type="hidden" name="faq_active" value={(f.active ?? true) ? "1" : "0"} />
-                <input type="hidden" name="faq_delete" value="0" />
-                <span className="text-xs text-[#64748B]">
-                  Aktiv: {(f.active ?? true) ? "Ja" : "Nein"} (MVP Toggle später)
-                </span>
-              </div>
-            </div>
-          ))}
-
-          {/* 1x Add Row */}
-          <div className="space-y-2 rounded-xl border border-dashed border-[#E2E8F0] bg-white p-4">
-            <input type="hidden" name="faq_id" value="" />
-            <input
-              name="faq_q"
-              placeholder="Neue Frage (optional)"
-              className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm outline-none"
-            />
-            <textarea
-              name="faq_a"
-              placeholder="Neue Antwort (optional)"
-              rows={2}
-              className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm outline-none"
-            />
-            <input type="hidden" name="faq_active" value="1" />
-            <input type="hidden" name="faq_delete" value="0" />
-            <p className="text-[11px] text-[#64748B]">
-              Wird beim Speichern erstellt, wenn Frage + Antwort ausgefüllt sind.
-            </p>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-[#10B981] px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#059669]"
-            >
-              FAQs speichern
-            </button>
-          </div>
-        </form>
-      </section>
+      {/* Editor (BusinessHours + Services + FAQs) */}
+      <SettingsEditor
+        initialBusinessHours={(businessHours ?? []) as any}
+        initialServices={(services ?? []) as any}
+        initialFaqs={(faqs ?? []) as any}
+        saveBusinessHoursAction={saveBusinessHoursAction}
+        saveServicesAction={saveServicesAction}
+        saveFaqsAction={saveFaqsAction}
+      />
 
       {/* AI & Stimme */}
       <section className="grid gap-4 md:grid-cols-2">
@@ -868,8 +558,12 @@ export default async function SettingsPage() {
               <Brain className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-medium text-[#1E293B]">AI-Einstellungen</h2>
-              <p className="text-xs text-[#64748B]">Steuere, ob ReceptaAI aktiv antwortet.</p>
+              <h2 className="text-sm font-medium text-[#1E293B]">
+                AI-Einstellungen
+              </h2>
+              <p className="text-xs text-[#64748B]">
+                Steuere, ob ReceptaAI aktiv antwortet.
+              </p>
             </div>
           </div>
 
@@ -886,7 +580,9 @@ export default async function SettingsPage() {
                   type="submit"
                   className={[
                     "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition",
-                    aiEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
+                    aiEnabled
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-slate-100 text-slate-600",
                   ].join(" ")}
                 >
                   <span
@@ -912,7 +608,9 @@ export default async function SettingsPage() {
                   type="submit"
                   className={[
                     "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition",
-                    staffEnabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600",
+                    staffEnabled
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-slate-100 text-slate-600",
                   ].join(" ")}
                 >
                   <span
@@ -950,6 +648,7 @@ export default async function SettingsPage() {
                 Standard-Stimme (Demo)
               </p>
             </div>
+
             <div className="space-y-1">
               <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">
                 Sprechgeschwindigkeit
@@ -982,7 +681,8 @@ export default async function SettingsPage() {
 
         <div className="flex flex-col gap-3 text-sm text-[#1E293B] md:flex-row md:items-center md:justify-between">
           <p className="text-sm text-[#64748B]">
-            Du möchtest dein ReceptaAI-Abo kündigen oder anpassen? Schreib uns einfach eine kurze Nachricht.
+            Du möchtest dein ReceptaAI-Abo kündigen oder anpassen? Schreib uns
+            einfach eine kurze Nachricht.
           </p>
           <a
             href="mailto:support@receptaai.app?subject=Abo%20kündigen%20oder%20anpassen"
