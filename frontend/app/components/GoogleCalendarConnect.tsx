@@ -2,12 +2,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 type Status = "loading" | "connected" | "disconnected" | "error";
 
-export default function GoogleCalendarConnect() {
+type Props = {
+  returnTo?: string;
+};
+
+export default function GoogleCalendarConnect({ returnTo }: Props) {
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
+  const pathname = usePathname();
+
+  // ✅ FIX: typo + auto-return je nach page
+  const finalReturnTo =
+    returnTo ??
+    (pathname?.startsWith("/dashboard") ? "/dashboard/settings" : "/onboarding");
+
+  // ✅ FIX: auf DEINE Start-Route zeigen (bei dir: /api/google/oauth)
+  const href = `/api/google/oauth/start?returnTo=${encodeURIComponent(finalReturnTo)}`;
 
   async function loadStatus() {
     setError(null);
@@ -34,8 +48,9 @@ export default function GoogleCalendarConnect() {
   }, []);
 
   function handleConnectClick() {
-    // Direkt auf die OAuth-Start-Route navigieren (macht den Redirect)
-    window.location.href = "/api/google/oauth/start";
+    // ✅ FIX: nicht hardcoded "/api/google/oauth/start"
+    // sondern die richtige Route inkl. returnTo
+    window.location.href = href;
   }
 
   const isConnected = status === "connected";
@@ -53,9 +68,7 @@ export default function GoogleCalendarConnect() {
           </p>
 
           <div className="mt-4 text-xs text-slate-500">
-            {status === "loading" && (
-              <span>Verbindungsstatus wird geladen…</span>
-            )}
+            {status === "loading" && <span>Verbindungsstatus wird geladen…</span>}
 
             {status === "connected" && (
               <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">

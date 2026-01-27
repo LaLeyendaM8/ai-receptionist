@@ -11,11 +11,27 @@ export const dynamic = "force-dynamic";
 
 const STATE_COOKIE = "gcal_oauth_state";
 
-function decodeState(stateStr: string) {
+type OAuthState = {
+  userId?: string;
+  nonce?: string;
+  returnTo?: string;
+};
+
+function decodeState(stateStr: string): OAuthState {
   const raw = Buffer.from(stateStr, "base64url").toString("utf8");
-  return JSON.parse(raw) as { userId?: string; nonce?: string };
+  return JSON.parse(raw) as OAuthState;
 }
 
+function safeReturnTo(path: string | undefined) {
+  // nur relative pfade erlauben (security)
+  if (!path) return null;
+  if (!path.startsWith("/")) return null;
+  if (path.startsWith("//")) return null;
+  // optional: harte whitelist
+  const allowed = new Set(["/onboarding", "/dashboard/settings"]);
+  if (allowed.has(path)) return path;
+  return null;
+}
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
@@ -32,7 +48,7 @@ export async function GET(req: Request) {
   }
 
   // ✅ validate state
-  let state: { userId?: string; nonce?: string };
+  let state: OAuthState;
   try {
     state = decodeState(stateStr);
   } catch {
@@ -88,5 +104,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "token_store_failed", details: error.message }, { status: 500 });
   }
 
-  return NextResponse.redirect(new URL("/settings/calendar?connected=1", req.url));
+  const returnTo = safeReturnTo(state?.returnTo) ?? "/onboarding";
+  return NextResponse.redirect(new URL(`${returnTo}?connected=1`, req.url));
 }

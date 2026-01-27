@@ -1,6 +1,7 @@
+
+
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import crypto from "crypto";
 import { cookies } from "next/headers";
 
 import { getBaseUrl } from "@/lib/getBaseUrl";
@@ -12,18 +13,44 @@ export const dynamic = "force-dynamic";
 
 const STATE_COOKIE = "gcal_oauth_state";
 
-function encodeState(obj: unknown) {
-  const raw = JSON.stringify(obj);
-  return Buffer.from(raw, "utf8").toString("base64url");
+type OAuthState = {
+  userId: string;
+  nonce: string;
+  returnTo?: string;
+};
+
+function encodeState(state: OAuthState) {
+  return Buffer.from(JSON.stringify(state), "utf8").toString("base64url");
+}
+
+function safeReturnTo(path: string | null) {
+  if (!path) return null;
+  if (!path.startsWith("/")) return null;
+  if (path.startsWith("//")) return null;
+
+  // MVP-whitelist
+  const allowed = new Set(["/onboarding", "/dashboard/settings"]);
+  if (allowed.has(path)) return path;
+
+  return null;
+}
+
+function randomNonce() {
+  // nodejs runtime => crypto ist da
+  return crypto.randomUUID();
 }
 
 export async function GET(req: Request) {
-  // ✅ auth user (must be logged in)
+  const url = new URL(req.url);
+
+  // ✅ 1) returnTo kommt vom UI (Onboarding oder Settings)
+  const requestedReturnTo = url.searchParams.get("returnTo");
+  const returnTo = safeReturnTo(requestedReturnTo) ?? "/onboarding";
+
+  // ✅ must be logged in
   const supabase = await createClients();
-  const currentUserId = await getCurrentUserId(supabase);
-  if (!currentUserId) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) return NextResponse.redirect(new URL("/login", req.url));
 
   const base = getBaseUrl(req);
   const redirectUri = `${base}/api/google/oauth/callback`;
@@ -34,10 +61,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "missing_google_env" }, { status: 500 });
   }
 
-  // ✅ CSRF protection: nonce in state + same nonce stored in HttpOnly cookie
-  const nonce = crypto.randomUUID();
-  const state = encodeState({ userId: currentUserId, nonce });
+  const nonce = randomNonce();
 
+  // ✅ 2) state enthält returnTo
+  const stateStr = encodeState({ userId, nonce, returnTo });
+
+  // nonce in cookie, callback prüft es
   const cookieStore = await cookies();
   cookieStore.set({
     name: STATE_COOKIE,
@@ -46,7 +75,7 @@ export async function GET(req: Request) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/api/google/oauth",
-    maxAge: 10 * 60, // 10 min
+    maxAge: 60 * 10, // 10 min
   });
 
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
@@ -54,8 +83,11 @@ export async function GET(req: Request) {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: ["https://www.googleapis.com/auth/calendar"],
-    state,
+    scope: [
+      "https://www.googleapis.com/auth/calendar",
+      // falls du nur read brauchst später: calendar.readonly
+    ],
+    state: stateStr,
   });
 
   return NextResponse.redirect(authUrl);
