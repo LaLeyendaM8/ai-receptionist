@@ -6,11 +6,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
+type ApiError =
+  | "missing_fields"
+  | "subscription_lookup_failed"
+  | "subscription_not_found"
+  | "subscription_not_active"
+  | "email_mismatch"
+  | "subscription_already_linked"
+  | "user_create_failed"
+  | "subscription_link_failed"
+  | string;
+
 export default function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const sessionId = searchParams.get("session_id") ?? "";
+  const sessionId = searchParams.get("session_id"); // string | null
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,12 +66,36 @@ export default function SignupForm() {
     );
   }
 
+  function mapApiError(code: ApiError) {
+    switch (code) {
+      case "missing_fields":
+        return "Bitte E-Mail und Passwort eingeben.";
+      case "subscription_not_found":
+        return "Zu dieser Stripe-Session wurde kein Stripe-Abo gefunden.";
+      case "subscription_not_active":
+        return "Dein Abo ist noch nicht aktiv. Bitte warte kurz oder versuche es erneut (Stripe kann 1–2 Minuten brauchen).";
+      case "email_mismatch":
+        return "Die E-Mail entspricht nicht der E-Mail aus dem Stripe-Kauf. Bitte die gleiche E-Mail verwenden.";
+      case "subscription_already_linked":
+        return "Dieses Stripe-Abo ist bereits mit einem Account verknüpft.";
+      case "user_create_failed":
+        return "Account konnte nicht erstellt werden. Bitte später noch einmal versuchen.";
+      case "subscription_lookup_failed":
+      case "subscription_link_failed":
+        return "Serverfehler beim Verknüpfen deines Abos. Bitte später erneut versuchen.";
+      default:
+        return "Es ist ein Fehler beim Registrieren aufgetreten.";
+    }
+  }
+
   // ---------- Submit-Handler ----------
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
-    if (!email || !password) {
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !password) {
       setError("Bitte E-Mail und Passwort eingeben.");
       return;
     }
@@ -75,52 +110,39 @@ export default function SignupForm() {
 
       const res = await fetch("/api/auth/signup", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email,
+          email: cleanEmail,
           password,
           sessionId,
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      // robust: erst text lesen (falls 404/html etc), dann versuchen JSON zu parsen
+      const raw = await res.text();
+      const data = (() => {
+        try {
+          return raw ? JSON.parse(raw) : {};
+        } catch {
+          return {};
+        }
+      })() as any;
 
       if (!res.ok) {
-        switch (data.error) {
-          case "subscription_not_found":
-            setError(
-              "Zu dieser Stripe-Session wurde kein Stripe-Abo gefunden."
-            );
-            break;
-          case "email_mismatch":
-            setError(
-              "Die E-Mail entspricht nicht der E-Mail aus dem Stripe-Kauf. Bitte die gleiche E-Mail verwenden."
-            );
-            break;
-          case "subscription_already_linked":
-            setError("Dieses Stripe-Abo ist bereits mit einem Account verknüpft.");
-            break;
-          case "user_create_failed":
-            setError(
-              "Account konnte nicht erstellt werden. Bitte später noch einmal versuchen."
-            );
-            break;
-          default:
-            setError("Es ist ein Fehler beim Registrieren aufgetreten.");
-            break;
-        }
+        const code: ApiError = data?.error ?? "unknown";
+        setError(mapApiError(code));
+        // optional debug (kannst du später entfernen)
+        console.error("[SIGNUP] api failed", res.status, code, raw);
         return;
       }
 
       // Auto-Login + Weiterleitung ins Onboarding
-      const loginEmail = data.email ?? email;
-      const { error: loginErr } =
-        await supabaseBrowser.auth.signInWithPassword({
-          email: loginEmail,
-          password,
-        });
+      const loginEmail = (data?.email ?? cleanEmail) as string;
+
+      const { error: loginErr } = await supabaseBrowser.auth.signInWithPassword({
+        email: loginEmail,
+        password,
+      });
 
       if (loginErr) {
         console.error("[SIGNUP] login error", loginErr);
@@ -165,10 +187,7 @@ export default function SignupForm() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-1.5">
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-slate-700"
-            >
+            <label htmlFor="email" className="block text-sm font-medium text-slate-700">
               E-Mail
             </label>
             <input
@@ -183,10 +202,7 @@ export default function SignupForm() {
           </div>
 
           <div className="space-y-1.5">
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-slate-700"
-            >
+            <label htmlFor="password" className="block text-sm font-medium text-slate-700">
               Passwort
             </label>
             <input
@@ -202,10 +218,7 @@ export default function SignupForm() {
           </div>
 
           <div className="space-y-1.5">
-            <label
-              htmlFor="passwordRepeat"
-              className="block text-sm font-medium text-slate-700"
-            >
+            <label htmlFor="passwordRepeat" className="block text-sm font-medium text-slate-700">
               Passwort wiederholen
             </label>
             <input
@@ -235,7 +248,6 @@ export default function SignupForm() {
           </button>
         </form>
 
-        {/* Optional: kleiner Hint */}
         <p className="text-xs text-center text-slate-500">
           Mit deiner Registrierung akzeptierst du die Nutzungsbedingungen und
           Datenschutzhinweise von ReceptaAI.
