@@ -60,21 +60,9 @@ if (isProd && !process.env.TWILIO_AUTH_TOKEN) {
 
 const twiml = `
 <Response>
-  <Gather
-    input="speech"
-    language="de-DE"
-    action="${base}/api/call/handle"
-    method="POST"
-    speechTimeout="auto"
-    timeout="5"
-    actionOnEmptyResult="true"
-    hints="Termin, Terminbuchung, Uhrzeit, heute, morgen, Öffnungszeiten, Preise, Name, Telefonnummer">
-    <Say language="de-DE" voice="alice">Willkommen. Was kann ich für Sie tun?</Say>
-  </Gather>
-
-  <Say language="de-DE" voice="alice">Ich habe nichts verstanden. Auf Wiederhören.</Say>
-  <Hangup/>
-</Response>`.trim();
+  <Redirect method="POST">${base}/api/call/handle</Redirect>
+</Response>
+`.trim();
 
 return new Response(twiml, { headers: { "Content-Type": "text/xml" } });
 

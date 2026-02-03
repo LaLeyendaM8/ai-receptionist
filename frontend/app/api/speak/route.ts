@@ -5,11 +5,8 @@ import { verifyTtsToken } from "@/lib/ttsToken";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Standard-Voice-ID "Rachel"
 const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
-
-// simple hard limits against cost-abuse
-const MAX_TEXT_CHARS = 500; // MVP: keep it tight
+const MAX_TEXT_CHARS = 500;
 
 function clampText(t: unknown) {
   const s = (typeof t === "string" ? t : "").trim();
@@ -21,7 +18,6 @@ async function synth(text: string, voiceId?: string) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY missing");
 
-  // ✅ MVP: ignore voiceId in prod to prevent people from choosing expensive/unknown voices
   const id =
     process.env.NODE_ENV === "production"
       ? DEFAULT_VOICE_ID
@@ -47,37 +43,40 @@ async function synth(text: string, voiceId?: string) {
   return await resp.arrayBuffer();
 }
 
-// ---- GET: Twilio <Play> ----
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-
     let text = "";
 
     if (process.env.NODE_ENV === "production") {
       const token = searchParams.get("token");
       if (!token) {
-        return new Response("Forbidden", { status: 403 });
+        return new Response("Forbidden: missing token", {
+          status: 403,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
       }
 
       const verifiedText = verifyTtsToken(token);
       if (!verifiedText) {
-        return new Response("Forbidden", { status: 403 });
+        return new Response("Forbidden: invalid token", {
+          status: 403,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
       }
 
       text = clampText(verifiedText);
     } else {
-      // Dev: allow plain text for fast iteration
       text = clampText(searchParams.get("text"));
     }
 
     const voiceId = searchParams.get("voiceId") || undefined;
 
     if (!text) {
-      return NextResponse.json(
-        { success: false, error: "text required" },
-        { status: 400 }
-      );
+      return new Response("Bad Request: text required", {
+        status: 400,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
     }
 
     const audio = await synth(text, voiceId);
@@ -90,18 +89,20 @@ export async function GET(req: Request) {
       },
     });
   } catch (err: any) {
-    return NextResponse.json(
-      { success: false, error: err?.message ?? "Unknown error" },
-      { status: 500 }
-    );
+    return new Response(`TTS Error: ${err?.message ?? "Unknown error"}`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
   }
 }
 
-// ---- POST: internal server-to-server (optional, dev / tooling) ----
 export async function POST(req: Request) {
   try {
     if (process.env.NODE_ENV === "production") {
-      return new Response("Forbidden", { status: 403 });
+      return new Response("Forbidden", {
+        status: 403,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
     }
 
     const body = await req.json();
@@ -109,10 +110,10 @@ export async function POST(req: Request) {
     const voiceId = body?.voiceId || undefined;
 
     if (!text) {
-      return NextResponse.json(
-        { success: false, error: "Text missing" },
-        { status: 400 }
-      );
+      return new Response("Bad Request: Text missing", {
+        status: 400,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
     }
 
     const audio = await synth(text, voiceId);
@@ -126,9 +127,9 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("TTS Error:", err);
-    return NextResponse.json(
-      { success: false, error: err?.message ?? "Unknown error" },
-      { status: 500 }
-    );
+    return new Response(`TTS Error: ${err?.message ?? "Unknown error"}`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
   }
 }
