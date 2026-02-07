@@ -153,7 +153,7 @@ Regeln:
 type ClientSettings = {
   id: string;
   ai_profile: string | null;
-  owner_user_id: string | null;
+  owner_user: string | null;
   timezone: string | null;
   staff_enabled: boolean | null;
 };
@@ -178,7 +178,7 @@ export async function runGptReceptionistFlow(
     if (clientIdFromInput) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, ai_profile, owner_user_id, timezone, staff_enabled")
+        .select("id, ai_profile, owner_user , timezone, staff_enabled")
         .eq("id", clientIdFromInput)
         .maybeSingle<ClientSettings>();
 
@@ -186,14 +186,14 @@ export async function runGptReceptionistFlow(
 
       resolvedClientId = data?.id ?? clientIdFromInput;
       profileText = data?.ai_profile ?? "";
-      ownerUserId = data?.owner_user_id ?? null;
+      ownerUserId = data?.owner_user ?? null;
       timezone = data?.timezone ?? "Europe/Berlin";
       staffEnabled = Boolean(data?.staff_enabled ?? true);
     } else {
       // Debug/Admin-Fallback: neuester Client mit Profil
       const { data, error } = await supabase
         .from("clients")
-        .select("id, ai_profile, owner_user_id, timezone, staff_enabled")
+        .select("id, ai_profile, owner_user , timezone, staff_enabled")
         .not("ai_profile", "is", null)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -203,7 +203,7 @@ export async function runGptReceptionistFlow(
 
       resolvedClientId = data?.id ?? null;
       profileText = data?.ai_profile ?? "";
-      ownerUserId = data?.owner_user_id ?? null;
+      ownerUserId = data?.owner_user ?? null;
       timezone = data?.timezone ?? "Europe/Berlin";
       staffEnabled = Boolean(data?.staff_enabled ?? true);
     }
