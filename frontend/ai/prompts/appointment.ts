@@ -124,7 +124,7 @@ Regeln zur Datenerkennung:
 
 - Datum IMMER als YYYY-MM-DD
 - Uhrzeit IMMER HH:MM (24h)
-- Wenn Nutzer NUR „Dienstag“/„morgen“/„übermorgen“ sagt:
+- Wenn Nutzer kein eindeutiges Datum nennt zb. „Dienstag“/„morgen“/„übermorgen“ sagt:
     → "date": null
     → "missing": "date"
 - GPT fragt NICHT nach → das übernimmt der Server.

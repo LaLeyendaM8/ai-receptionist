@@ -60,7 +60,7 @@ if (isProd && !process.env.TWILIO_AUTH_TOKEN) {
 
 const twiml = `
 <Response>
-  <Redirect method="POST">${base}/api/call/handle</Redirect>
+  <Redirect method="POST">${base}/api/call/handle?stage=start</Redirect>
 </Response>
 `.trim();
 

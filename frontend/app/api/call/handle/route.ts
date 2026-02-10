@@ -72,9 +72,9 @@ function sayWithTTS(target: any, text: string, base?: string) {
 function buildGreeting(client: ClientProfile | null) {
   const companyName = client?.name?.trim();
   if (companyName) {
-    return `Willkommen bei ${companyName}. Was kann ich für Sie tun?`;
+    return `Willkommen bei ${companyName}. Ich bin die virtuelle Rezeptionistin. Möchten Sie einen Termin buchen oder haben Sie eine kurze Frage – zum Beispiel zu Öffnungszeiten oder Preisen?`;
   }
-  return "Willkommen bei ReceptaAI. Was kann ich für Sie tun?";
+  return "Willkommen bei ReceptaAI. Ich bin die virtuelle Rezeptionistin. Möchten Sie ein Gespräch buchen oder haben Sie eine kurze Frage – zum Beispiel zu dem Setup oder Preisen?";
 }
 
 /**
@@ -182,9 +182,11 @@ export async function POST(req: Request) {
 
     const vr = new TwiML.VoiceResponse();
 
-    // Wenn das der erste Turn ist (kein SpeechResult) -> Begrüßung + Gather
-    const isFirstTurn =
-      !params.SpeechResult && !params.TranscriptionText && !params.Digits;
+const u = new URL(req.url);
+const stage = u.searchParams.get("stage");
+
+// Nur beim echten Start begrüßen (nicht bei Empty Speech)
+const isFirstTurn = stage === "start";
 
     if (isFirstTurn) {
       const g = vr.gather({
@@ -193,7 +195,7 @@ export async function POST(req: Request) {
         action: `${base}/api/call/handle`,
         method: "POST",
         speechTimeout: "auto",
-        timeout: 6,
+        timeout: 12,
         actionOnEmptyResult: true,
       });
 
@@ -235,14 +237,14 @@ export async function POST(req: Request) {
         action: `${base}/api/call/handle`,
         method: "POST",
         speechTimeout: "auto",
-        timeout: 6,
+        timeout: 12,
         actionOnEmptyResult: true,
       });
 
       const msg =
-        count === 1
-          ? "Entschuldigung, ich habe nichts gehört. Können Sie das bitte nochmal sagen?"
-          : "Ich höre Sie leider nicht. Bitte sprechen Sie einmal deutlich – was kann ich für Sie tun?";
+  count === 1
+    ? "Ich habe Sie gerade kurz nicht gehört. Sagen Sie zum Beispiel: „Termin buchen“ oder „Öffnungszeiten“."
+    : "Ich höre Sie leider nicht. Sagen Sie bitte kurz: „Termin“ oder „Frage“ – zum Beispiel „Preise“ oder „Adresse“.";
 
       sayWithTTS(g, msg, base);
       return new Response(vr.toString(), {
@@ -303,7 +305,7 @@ export async function POST(req: Request) {
       action: `${base}/api/call/handle`,
       method: "POST",
       speechTimeout: "auto",
-      timeout: 6,
+      timeout: 12,
       actionOnEmptyResult: true,
     });
 
@@ -315,7 +317,7 @@ export async function POST(req: Request) {
     const vr = new TwiML.VoiceResponse();
     sayWithTTS(
       vr,
-      "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
+      "Ich habe leider nichts gehört. Versuchen Sie es bitte noch einmal oder rufen Sie später nochmal an. Auf Wiederhören.",
       base
     );
     return new Response(vr.toString(), {
