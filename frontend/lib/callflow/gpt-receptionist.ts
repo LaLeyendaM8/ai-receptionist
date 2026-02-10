@@ -112,9 +112,7 @@ function hardEndFromText(text: string) {
     "das war's",
     "das wars",
     "das war alles",
-    "passt danke",
-    "ok danke",
-  ];
+    ];
 
   return phrases.some((p) => t.includes(p));
 }
@@ -238,7 +236,7 @@ export async function runGptReceptionistFlow(
       brain = {
         intent: "other",
         reply:
-          "Entschuldigung, ich habe das nicht ganz verstanden. Können Sie das bitte nochmal kurz sagen?",
+          "Entschuldigung, das habe ich nicht ganz verstanden. Geht es um einen Termin oder haben Sie eine kurze Frage, zum Beispiel zu Öffnungszeiten oder Preisen?",
         confidence: 0.2,
         end_call: false,
         meta: null,
@@ -273,7 +271,7 @@ export async function runGptReceptionistFlow(
               confidence,
               end_call: true,
               reply:
-                "Entschuldigung – ich verstehe Sie gerade leider nicht. Am besten verbinden wir Sie mit einem Mitarbeiter. Auf Wiederhören.",
+                "Entschuldigung – ich verstehe Sie gerade leider nicht. Ich verbinde Sie kurz mit einem Mitarbeiter. Auf Wiederhören.",
               brain: { raw: brain, meta: brain.meta },
             };
           }
@@ -289,7 +287,7 @@ export async function runGptReceptionistFlow(
         end_call: false,
         reply:
           brain.reply ||
-          "Entschuldigung, ich habe das nicht ganz verstanden. Können Sie das bitte nochmal kurz sagen?",
+          "Entschuldigung, das habe ich nicht ganz verstanden. Geht es um einen Termin oder haben Sie eine kurze Frage, zum Beispiel zu Öffnungszeiten oder Preisen?",
         brain: { raw: brain, meta: brain.meta },
       };
     }
@@ -315,7 +313,7 @@ export async function runGptReceptionistFlow(
       end_call: endCallFromBrain,
       reply:
         (typeof brain.reply === "string" && brain.reply) ||
-        "Alles klar. Wie kann ich Ihnen helfen?",
+        "Gern. Möchten Sie einen Termin buchen oder haben Sie eine kurze Frage – zum Beispiel zu Öffnungszeiten oder Preisen?",
       brain: { raw: brain, meta: brain.meta },
     };
 
@@ -383,7 +381,7 @@ export async function runGptReceptionistFlow(
           brainIntent: "create_appointment",
         });
 
-        let apReply = "Gern – für wann möchten Sie den Termin?";
+        let apReply = "Gern. Für welches Datum möchten Sie den Termin? Sagen Sie zum Beispiel: ‚08.02.2026‘.";
         if (ap?.status === "need_info" && ap?.question) apReply = ap.question;
         else if (ap?.message) apReply = ap.message;
         else if (ap?.phrase) apReply = ap.phrase;

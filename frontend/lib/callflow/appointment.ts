@@ -411,7 +411,7 @@ export async function runAppointmentFlow(
         return {
           status: "need_info",
           missing: "customer_name",
-          question: "Auf welchen Namen ist der Termin eingetragen?",
+          question: "Wie lautet der Name, unter dem der Termin gebucht ist?",
         };
       }
 
@@ -523,7 +523,7 @@ export async function runAppointmentFlow(
         return {
           status: "need_info",
           missing: "customer_name",
-          question: "Auf welchen Namen ist der Termin eingetragen?",
+          question: "Wie lautet der Name, unter dem der Termin gebucht ist?",
         };
       }
 
@@ -596,7 +596,7 @@ export async function runAppointmentFlow(
 
       return {
         status: "cancelled",
-        message: `Alles klar – ich habe den Termin am ${date} um ${time} storniert.`,
+        message: `Alles klar – ich habe den Termin am ${date} um ${time} storniert. Kann ich sonst noch was für Sie tun?`,
         appointmentId: appt.id,
       };
     }
@@ -629,7 +629,7 @@ export async function runAppointmentFlow(
         return {
           status: "need_info",
           missing: "customer_name",
-          question: "Auf welchen Namen ist der aktuelle Termin eingetragen?",
+          question: "Wie lautet der Name, unter dem der Termin gebucht ist?",
         };
       }
 
@@ -644,7 +644,7 @@ export async function runAppointmentFlow(
         return {
           status: "need_info",
           missing: "new_date",
-          question: "Auf welches Datum möchten Sie den Termin verschieben? (YYYY-MM-DD)",
+          question: "Alles klar. Auf welches Datum möchten Sie den Termin verschieben? Zum Beispiel ‚08.02.2026‘.",
         };
       }
 
@@ -659,7 +659,7 @@ export async function runAppointmentFlow(
         return {
           status: "need_info",
           missing: "new_time",
-          question: "Auf welche Uhrzeit möchten Sie den Termin verschieben? (HH:MM, 24h)?",
+          question: "Und auf welche Uhrzeit soll ich ihn verschieben? Zum Beispiel ‚15 Uhr‘.",
         };
       }
 
@@ -842,7 +842,7 @@ export async function runAppointmentFlow(
 
       return {
         status: "rescheduled",
-        message: `Ich habe Ihren Termin von ${oldDateStr} ${oldTimeStr} auf ${newDateStr} ${newTimeStr} verschoben.`,
+        message: `Ich habe Ihren Termin von ${oldDateStr} ${oldTimeStr} auf ${newDateStr} ${newTimeStr} verschoben. Passt das so?`,
         appointmentId: updated.id,
       };
     }
@@ -908,7 +908,7 @@ export async function runAppointmentFlow(
             status: "need_info",
             missing: "staff",
             question:
-              "Für welchen Mitarbeiter oder welche Mitarbeiterin möchten Sie die freien Zeiten wissen?",
+              "Für welchen Mitarbeiter genau wollen Sie die Zeiten wissen? Bitte nennen Sie mir kurz den Namen.",
           };
         }
 
@@ -931,7 +931,7 @@ export async function runAppointmentFlow(
             status: "need_info",
             missing: "staff",
             question:
-              "Ich habe diesen Namen nicht gefunden. Für welchen Mitarbeiter oder welche Mitarbeiterin soll ich schauen?",
+              "Ich habe diesen Namen nicht gefunden. Für welchen Mitarbeiter genau? Bitte nennen Sie mir kurz den Namen.",
           };
         }
 
@@ -1143,10 +1143,10 @@ export async function runAppointmentFlow(
     };
 
     if (!nextAppointment.date) {
-      return await needInfo("date", "An welchem Tag möchten Sie den Termin? (YYYY-MM-DD)");
+      return await needInfo("date", "Für welches Datum soll ich den Termin eintragen? Zum Beispiel: ‚08.02.2026‘.");
     }
     if (!nextAppointment.time) {
-      return await needInfo("time", "Welche Uhrzeit passt Ihnen? (HH:MM, 24h)");
+      return await needInfo("time", "Und welche Uhrzeit passt Ihnen? Zum Beispiel ‚15 Uhr‘ oder ‚16:30‘.");
     }
 
     const dateStr: string = nextAppointment.date!;
@@ -1206,7 +1206,7 @@ export async function runAppointmentFlow(
     if (!nextAppointment.serviceName) {
       return await needInfo(
         "service",
-        "Für welche Leistung möchten Sie buchen? (z. B. Haarschnitt, Färben, Maniküre)"
+        "Um welche Dienstleistung geht es beim Termin? Zum Beispiel Beratung oder Behandlung."
       );
     }
 
@@ -1214,7 +1214,7 @@ export async function runAppointmentFlow(
 if (!serviceText) {
   return await needInfo(
     "service",
-    "Für welche Leistung möchten Sie genau buchen? (z. B. Haarschnitt, Färben, Maniküre)"
+    "Um welche Dienstleistung geht es beim Termin? Zum Beispiel Beratung oder Behandlung."
   );
 }
 
@@ -1498,7 +1498,7 @@ if (!svc) {
     const staffPart = staffName && staffName.trim().length > 0 ? ` bei ${staffName.trim()}` : "";
 
     const preview = `„${svc.title}“ am ${dateStr} um ${timeStr}${customerPart}${staffPart}`;
-    const phrase = `${staffNote} Ich habe ${preview} eingetragen. Soll ich den Termin fix eintragen?`;
+    const phrase = `Perfekt,${staffNote} Ich habe ${preview} eingetragen. Passt das so?`;
 
     return { status: "confirm", draftId: draft.id, preview, phrase };
   } catch (err: unknown) {

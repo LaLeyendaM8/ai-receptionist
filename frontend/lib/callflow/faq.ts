@@ -67,7 +67,7 @@ export async function runFaqFlow(input: FaqFlowInput): Promise<FaqFlowResult> {
       return {
         status: "handoff",
         message:
-          "Mir fehlen Firmendaten (z.B. Öffnungszeiten). Ich leite die Anfrage an einen Mitarbeiter weiter.",
+          "Ich habe gerade nicht alle Firmendaten parat. Ich leite die Anfrage an einen Mitarbeiter weiter.",
       };
     }
 
@@ -86,7 +86,7 @@ export async function runFaqFlow(input: FaqFlowInput): Promise<FaqFlowResult> {
     if (!clientRow?.ai_enabled) {
       return {
         status: "handoff",
-        message: "Die AI ist aktuell deaktiviert. Ich leite an einen Mitarbeiter weiter.",
+        message: "Einen Moment, Ich leite sie an einen Mitarbeiter weiter.",
       };
     }
 
@@ -116,7 +116,7 @@ export async function runFaqFlow(input: FaqFlowInput): Promise<FaqFlowResult> {
     if (intent === "route_appointment") {
       return {
         status: "route_appointment",
-        message: "Gern – ich kann den Termin für Sie anlegen.",
+        message: "Gern – ich helfe Ihnen bei der Terminbuchung.",
       };
     }
 
@@ -160,14 +160,14 @@ export async function runFaqFlow(input: FaqFlowInput): Promise<FaqFlowResult> {
         status: "handoff_open",
         handoffId: inserted.id,
         message:
-          "Ich habe Ihre Anfrage an unser Team weitergeleitet. Wir melden uns kurzfristig.",
+          "Alles klar, ich gebe das an unser Team weiter, Wir melden uns so schnell wie möglich.",
       };
     }
 
     // 6) Normale Antwort
     return {
       status: "answer",
-      answer: parsed.answer || "Ich hoffe, das hilft Ihnen weiter.",
+      answer: parsed.answer || "Gern, kann ich sonst noch etwas für Sie tun?",
       confidence: conf,
     };
   } catch (e: any) {
