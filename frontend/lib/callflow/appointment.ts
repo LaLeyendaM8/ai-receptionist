@@ -446,9 +446,14 @@ export async function runAppointmentFlow(
         return { status: "info_none", message: "Ich finde keinen zukünftigen Termin für Sie." };
       }
 
-      const start = DateTime.fromISO(nextAppt.start_at, { zone: "utc" }).setZone(timezone);
-      const dateStr = start.setLocale("de").toFormat("cccc, dd.MM.yyyy");
-      const timeStr = start.toFormat("HH:mm");
+const start = DateTime.fromISO(nextAppt.start_at, { zone: "utc" }).setZone(timezone);
+const dateStr = start.setLocale("de").toFormat("cccc, 'den' dd.MM.yyyy");
+
+const timeStr = start.toFormat("HH:mm");
+const [hh, mm] = timeStr.split(":");
+const timeSpoken =
+  mm === "00" ? `${parseInt(hh, 10)} Uhr` : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
+
 
       if (conv) {
         try {
@@ -460,7 +465,7 @@ export async function runAppointmentFlow(
 
       return {
         status: "info",
-        message: `Sie haben einen Termin am ${dateStr} um ${timeStr} für "${nextAppt.title}".`,
+        message: `Sie haben einen Termin am ${dateStr} um ${timeSpoken} für "${nextAppt.title}".`,
         appointmentId: nextAppt.id,
       };
     }
@@ -493,7 +498,7 @@ export async function runAppointmentFlow(
         return {
           status: "need_info",
           missing: "date",
-          question: "Für welches Datum soll ich den Termin stornieren? (YYYY-MM-DD)",
+          question: "Für welches Datum soll ich den Termin stornieren? Zum Beispiel: „08.02.2026“.",
         };
       }
 
@@ -508,7 +513,7 @@ export async function runAppointmentFlow(
         return {
           status: "need_info",
           missing: "time",
-          question: "Um wie viel Uhr war der Termin, den Sie stornieren möchten? (HH:MM)",
+          question: "Und um welche Uhrzeit war der Termin? Zum Beispiel „15 Uhr“ oder „16:30“.",
         };
       }
 
@@ -529,7 +534,7 @@ export async function runAppointmentFlow(
 
       const targetISO = localDateTimeToUTCISO(date, time, timezone);
       if (!targetISO) {
-        return { status: "need_info", missing: "time", question: "Bitte HH:MM (24h)." };
+        return { status: "need_info", missing: "time", question: "Die Uhrzeit habe ich nicht ganz verstanden. Sagen Sie bitte zum Beispiel „15 Uhr“ oder „16:30“." };
       }
 
       const { data: appt, error: apptErr } = await supabase
@@ -593,10 +598,14 @@ export async function runAppointmentFlow(
           console.warn("[CANCEL] clearConversationState failed", err);
         }
       }
+const dateSpoken = DateTime.fromISO(date, { zone: timezone }).toFormat("dd.LL.yyyy");
+const [hh, mm] = time.split(":");
+const timeSpoken =
+  mm === "00" ? `${parseInt(hh, 10)} Uhr` : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
 
       return {
         status: "cancelled",
-        message: `Alles klar – ich habe den Termin am ${date} um ${time} storniert. Kann ich sonst noch was für Sie tun?`,
+        message: `Alles klar – ich habe den Termin am ${dateSpoken} um ${timeSpoken} storniert. Kann ich sonst noch was für Sie tun?`,
         appointmentId: appt.id,
       };
     }
@@ -827,10 +836,17 @@ export async function runAppointmentFlow(
         .setZone(timezone)
         .setLocale("de");
 
-      const oldDateStr = oldLocal.toFormat("cccc, dd.MM");
-      const oldTimeStr = oldLocal.toFormat("HH:mm");
-      const newDateStr = newLocal.toFormat("cccc, dd.MM");
-      const newTimeStr = newLocal.toFormat("HH:mm");
+const oldDateStr = oldLocal.toFormat("cccc, 'den' dd.MM.yyyy");
+const newDateStr = newLocal.toFormat("cccc, 'den' dd.MM.yyyy");
+
+const oldTimeHHMM = oldLocal.toFormat("HH:mm");
+const [oldH, oldM] = oldTimeHHMM.split(":");
+const oldTimeSpoken = oldM === "00" ? `${parseInt(oldH, 10)} Uhr` : `${parseInt(oldH, 10)} Uhr ${parseInt(oldM, 10)}`;
+
+const newTimeHHMM = newLocal.toFormat("HH:mm");
+const [newH, newM] = newTimeHHMM.split(":");
+const newTimeSpoken = newM === "00" ? `${parseInt(newH, 10)} Uhr` : `${parseInt(newH, 10)} Uhr ${parseInt(newM, 10)}`;
+
 
       if (conv) {
         try {
@@ -842,148 +858,70 @@ export async function runAppointmentFlow(
 
       return {
         status: "rescheduled",
-        message: `Ich habe Ihren Termin von ${oldDateStr} ${oldTimeStr} auf ${newDateStr} ${newTimeStr} verschoben. Passt das so?`,
+        message: `Ich habe Ihren Termin von ${oldDateStr} ${oldTimeSpoken} auf ${newDateStr} ${newTimeSpoken} verschoben. Passt das so?`,
         appointmentId: updated.id,
       };
     }
 
-    // ------------------------------------------------------------------
-    // CASE 4: AVAILABILITY – freie Zeiten abfragen
-    // ------------------------------------------------------------------
-    if (intent === "availability" || intent === "staff_availability") {
-      const durationMin: number = parsed.duration_min ?? 30;
-      const requestedStaffName: string | null =
-        parsed.preferred_staff ?? (parsed as any).staff ?? null;
+// ------------------------------------------------------------------
+// CASE 4: AVAILABILITY – freie Zeiten abfragen
+// ------------------------------------------------------------------
+if (intent === "availability" || intent === "staff_availability") {
+  const durationMin: number = Number(parsed.duration_min ?? 30) || 30;
 
-      if (!staffEnabled && intent === "staff_availability") {
-        const dateOnly = parsed.date ?? null;
-        return {
-          status: "availability",
-          message:
-            "Aktuell können wir leider keine Mitarbeiterwünsche annehmen. Ich kann Ihnen aber allgemeine freie Zeiten nennen – für welchen Tag möchten Sie die Verfügbarkeit wissen? (YYYY-MM-DD)",
-          suggestions: [],
-          staff: null,
-          date: isISODate(dateOnly) ? dateOnly : null,
-        };
-      }
+  const requestedStaffName: string | null =
+    (parsed.preferred_staff ?? (parsed as any).staff ?? null) as string | null;
 
-      let nextAppointment: AppointmentCS = {
-        ...(appointmentState || {}),
-        mode: "info",
-      };
+  // Wenn staff_availability gefragt wird, aber staff feature aus ist:
+  // -> freundlich erklären + Datum abfragen (ohne Format-Zwang)
+  if (!staffEnabled && intent === "staff_availability") {
+    const dateOnly = parsed.date ?? null;
 
-      if (parsed.date) nextAppointment.date = isISODate(parsed.date) ? parsed.date : null;
-      if (requestedStaffName) nextAppointment.staffName = requestedStaffName;
+    return {
+      status: "availability",
+      message:
+        "Aktuell können wir leider keine Mitarbeiterwünsche annehmen. Ich kann Ihnen aber allgemeine freie Zeiten nennen. Für welches Datum möchten Sie die Verfügbarkeit wissen? Zum Beispiel: „08.02.2026“.",
+      suggestions: [],
+      staff: null,
+      date: isISODate(dateOnly) ? dateOnly : null,
+    };
+  }
 
-      const date: string | null = nextAppointment.date ?? null;
+  let nextAppointment: AppointmentCS = {
+    ...(appointmentState || {}),
+    mode: "info",
+  };
 
-      if (!date || !isISODate(date)) {
-        if (conv) {
-          await patchConversationState({
-            supabase,
-            id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
-          });
-        }
-        return {
-          status: "need_info",
-          missing: "date",
-          question: "Für welchen Tag möchten Sie die freien Zeiten wissen? (YYYY-MM-DD)",
-        };
-      }
+  if (parsed.date) nextAppointment.date = isISODate(parsed.date) ? parsed.date : null;
+  if (requestedStaffName) nextAppointment.staffName = requestedStaffName;
 
-      let staffId: string | null = null;
-      let staffName: string | null = nextAppointment.staffName ?? null;
+  const date: string | null = nextAppointment.date ?? null;
 
-      if (intent === "staff_availability") {
-        if (!staffName) {
-          if (conv) {
-            await patchConversationState({
-              supabase,
-              id: conv.id,
-              patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
-            });
-          }
-          return {
-            status: "need_info",
-            missing: "staff",
-            question:
-              "Für welchen Mitarbeiter genau wollen Sie die Zeiten wissen? Bitte nennen Sie mir kurz den Namen.",
-          };
-        }
-
-        const { data: staffRow } = await supabase
-          .from("staff")
-          .select("id, name")
-          .eq("client_id", clientId)
-          .ilike("name", staffName)
-          .maybeSingle();
-
-        if (!staffRow) {
-          if (conv) {
-            await patchConversationState({
-              supabase,
-              id: conv.id,
-              patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
-            });
-          }
-          return {
-            status: "need_info",
-            missing: "staff",
-            question:
-              "Ich habe diesen Namen nicht gefunden. Für welchen Mitarbeiter genau? Bitte nennen Sie mir kurz den Namen.",
-          };
-        }
-
-        staffId = staffRow.id;
-        staffName = staffRow.name;
-
-        nextAppointment.staffId = staffId;
-        nextAppointment.staffName = staffName;
-      }
-
-      const windowStart: string | null = parsed.window_start ?? null;
-      const windowEnd: string | null = parsed.window_end ?? null;
-      const windowStartMin =
-        windowStart && isTimeHM(windowStart) ? hmToMinutes(windowStart) : null;
-      const windowEndMin =
-        windowEnd && isTimeHM(windowEnd) ? hmToMinutes(windowEnd) : null;
-
-      const dayRef = DateTime.fromISO(date, { zone: timezone }).set({ hour: 12 }).toJSDate();
-
-      const suggestions = await findNextFreeSlots(
+  if (!date || !isISODate(date)) {
+    if (conv) {
+      await patchConversationState({
         supabase,
-        overlapCache,
-        clientId,
-        staffId,
-        dayRef,
-        durationMin,
-        timezone,
-        3,
-        windowStartMin ?? undefined,
-        windowEndMin ?? undefined
-      );
+        id: conv.id,
+        patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+      });
+    }
 
-      if (!suggestions.length) {
-        const msg = staffName
-          ? `Am ${date} habe ich für ${staffName} leider keine freien Slots gefunden.`
-          : `Am ${date} habe ich leider keine freien Slots gefunden.`;
+    return {
+      status: "need_info",
+      missing: "date",
+      question:
+        "Für welches Datum möchten Sie die freien Zeiten wissen? Zum Beispiel: „08.02.2026“.",
+    };
+  }
 
-        if (conv) {
-          await patchConversationState({
-            supabase,
-            id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
-          });
-        }
+  // Datum für Sprachausgabe (statt ISO)
+  const dateSpoken = DateTime.fromISO(date, { zone: timezone }).toFormat("dd.LL.yyyy");
 
-        return { status: "availability_none", message: msg, suggestions: [] };
-      }
+  let staffId: string | null = null;
+  let staffName: string | null = nextAppointment.staffName ?? null;
 
-      const msg = staffName
-        ? `Am ${date} hätte ${staffName} z. B. folgende freie Zeiten: ${suggestions.join(", ")}.`
-        : `Am ${date} hätte ich z. B. folgende freie Zeiten: ${suggestions.join(", ")}.`;
-
+  if (intent === "staff_availability") {
+    if (!staffName) {
       if (conv) {
         await patchConversationState({
           supabase,
@@ -992,11 +930,102 @@ export async function runAppointmentFlow(
         });
       }
 
-      return { status: "availability", message: msg, suggestions, staff: staffName, date };
+      return {
+        status: "need_info",
+        missing: "staff",
+        question:
+          "Für welchen Mitarbeiter möchten Sie freie Zeiten wissen? Bitte nennen Sie mir kurz den Namen.",
+      };
     }
 
+    const { data: staffRow } = await supabase
+      .from("staff")
+      .select("id, name")
+      .eq("client_id", clientId)
+      .ilike("name", staffName)
+      .maybeSingle();
+
+    if (!staffRow) {
+      if (conv) {
+        await patchConversationState({
+          supabase,
+          id: conv.id,
+          patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+        });
+      }
+
+      return {
+        status: "need_info",
+        missing: "staff",
+        question:
+          "Ich habe diesen Namen leider nicht gefunden. Für welchen Mitarbeiter genau? Bitte nennen Sie mir kurz den Namen.",
+      };
+    }
+
+    staffId = staffRow.id;
+    staffName = staffRow.name;
+
+    nextAppointment.staffId = staffId;
+    nextAppointment.staffName = staffName;
+  }
+
+  const windowStart: string | null = parsed.window_start ?? null;
+  const windowEnd: string | null = parsed.window_end ?? null;
+
+  const windowStartMin =
+    windowStart && isTimeHM(windowStart) ? hmToMinutes(windowStart) : null;
+  const windowEndMin =
+    windowEnd && isTimeHM(windowEnd) ? hmToMinutes(windowEnd) : null;
+
+  const dayRef = DateTime.fromISO(date, { zone: timezone }).set({ hour: 12 }).toJSDate();
+
+  const suggestions = await findNextFreeSlots(
+    supabase,
+    overlapCache,
+    clientId,
+    staffId,
+    dayRef,
+    durationMin,
+    timezone,
+    3,
+    windowStartMin ?? undefined,
+    windowEndMin ?? undefined
+  );
+
+  if (!suggestions.length) {
+    const msg = staffName
+      ? `Am ${dateSpoken} habe ich für ${staffName} leider keine freien Zeiten gefunden.`
+      : `Am ${dateSpoken} habe ich leider keine freien Zeiten gefunden.`;
+
+    if (conv) {
+      await patchConversationState({
+        supabase,
+        id: conv.id,
+        patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+      });
+    }
+
+    return { status: "availability_none", message: msg, suggestions: [] };
+  }
+
+  const msg = staffName
+    ? `Am ${dateSpoken} hätte ${staffName} zum Beispiel folgende freie Zeiten: ${suggestions.join(", ")}.`
+    : `Am ${dateSpoken} hätte ich zum Beispiel folgende freie Zeiten: ${suggestions.join(", ")}.`;
+
+  if (conv) {
+    await patchConversationState({
+      supabase,
+      id: conv.id,
+      patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+    });
+  }
+
+  return { status: "availability", message: msg, suggestions, staff: staffName, date };
+}
+
+
     // ------------------------------------------------------------------
-    // CASE: appointment_confirm
+    // CASE 5.1 : appointment_confirm
     // ------------------------------------------------------------------
     if (intent === "appointment_confirm") {
       const draftIdFromState = appointmentState?.draftId ?? null;
@@ -1145,6 +1174,15 @@ export async function runAppointmentFlow(
     if (!nextAppointment.date) {
       return await needInfo("date", "Für welches Datum soll ich den Termin eintragen? Zum Beispiel: ‚08.02.2026‘.");
     }
+    // UX-Boost: Wenn Datum schon da ist, aber Service + Uhrzeit fehlen,
+// fragen wir beides in einem Schritt ab (reduziert Ping-Pong und wirkt natürlicher).
+if (nextAppointment.date && !nextAppointment.time && !nextAppointment.serviceName) {
+  return await needInfo(
+    "time",
+    `Alles klar. Für welche Leistung und welche Uhrzeit ist der Termin? Zum Beispiel: „Haarschnitt um 15 Uhr“.`
+  );
+}
+
     if (!nextAppointment.time) {
       return await needInfo("time", "Und welche Uhrzeit passt Ihnen? Zum Beispiel ‚15 Uhr‘ oder ‚16:30‘.");
     }
@@ -1496,9 +1534,15 @@ if (!svc) {
     const customerPart =
       customerName && customerName.trim().length > 0 ? ` für ${customerName.trim()}` : "";
     const staffPart = staffName && staffName.trim().length > 0 ? ` bei ${staffName.trim()}` : "";
+    const dateSpoken = DateTime.fromISO(dateStr, { zone: timezone }).toFormat("dd.LL.yyyy");
+    const [hh, mm] = timeStr.split(":");
+    const timeSpoken =
+      mm === "00"
+      ? `${parseInt(hh, 10)} Uhr`
+      : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
 
-    const preview = `„${svc.title}“ am ${dateStr} um ${timeStr}${customerPart}${staffPart}`;
-    const phrase = `Perfekt,${staffNote} Ich habe ${preview} eingetragen. Passt das so?`;
+    const preview = `„${svc.title}“ am ${dateSpoken} um ${timeSpoken}${customerPart}${staffPart}`;
+    const phrase = `${staffNote} Ich habe ${preview} eingetragen. Passt das so?`;
 
     return { status: "confirm", draftId: draft.id, preview, phrase };
   } catch (err: unknown) {
