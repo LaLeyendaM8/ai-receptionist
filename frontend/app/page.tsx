@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import Image from "next/image";
+import { Brand } from "./components/Brand"
 
 type FaqItem = {
   question: string;
@@ -70,13 +71,9 @@ export default function HomePage() {
       {/* HEADER */}
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <a href="#hero" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
-              {/* simpler Phone-Icon als Platzhalter */}
-              <span className="text-lg">📞</span>
-            </div>
-            <span className="font-semibold tracking-tight">ReceptaAI</span>
-          </a>
+         <a href="#hero" className="flex items-center gap-2">
+  <Brand href={undefined} variant="horizontal" size="md" priority />
+</a>
 
           <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
             <a href="#features" className="hover:text-slate-900">
@@ -404,7 +401,7 @@ export default function HomePage() {
                     🔒
                   </div>
                   <div>
-                    <p className="font-semibold">100&nbsp;% DSGVO-konform</p>
+                    <p className="font-semibold">DSGVO-konform entwickelt</p>
                     <p className="text-xs text-slate-500">
                       Deine Kundendaten werden nach strengen
                       Datenschutzrichtlinien verarbeitet.
@@ -585,12 +582,7 @@ export default function HomePage() {
   <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 ">
     <div className="grid gap-8 md:grid-cols-4">
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-white">
-            📞
-          </div>
-          <span className="font-semibold tracking-tight">ReceptaAI</span>
-        </div>
+       <Brand href="/" variant="horizontal" size="md" />
         <p className="text-sm text-slate-600">
           Dein KI-Telefonassistent für 24/7 Kundenbetreuung – DSGVO-konform und mehrsprachig.
         </p>
