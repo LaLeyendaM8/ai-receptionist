@@ -1,5 +1,3 @@
-// app/impressum/page.tsx (oder wo deine Route liegt)
-
 import { Building2, Mail, MapPin, Phone, Scale } from "lucide-react";
 
 export default function ImpressumPage() {
@@ -15,11 +13,10 @@ export default function ImpressumPage() {
             Impressum
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Angaben gemäß § 5 TMG und § 18 Abs. 2 MStV.
+            Angaben gemäß § 5 DDG (ehemals § 5 TMG) und § 18 Abs. 2 MStV.
           </p>
         </header>
 
-        {/* Card */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#3B82F6]">
@@ -38,15 +35,24 @@ export default function ImpressumPage() {
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Unternehmensname
+                Geschäftsbezeichnung
               </p>
-              <p className="mt-1 text-sm text-slate-900">ReceptaAI</p>
+              <p className="mt-1 text-sm text-slate-900">
+                ReceptaAI
+              </p>
 
               <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
                 Inhaber
               </p>
               <p className="mt-1 text-sm text-slate-900">
                 Michael F. E. Eraso Horn
+              </p>
+
+              <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
+                Rechtsform
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Einzelunternehmen
               </p>
             </div>
 
@@ -102,30 +108,19 @@ export default function ImpressumPage() {
               </div>
             </div>
 
-            {/* Optional / falls zutreffend */}
             <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex items-start gap-2">
                 <Scale className="mt-0.5 h-4 w-4 text-slate-400" />
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Registereintrag (falls vorhanden)
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Handelsregister: –
-                      <br />
-                      Registergericht: –
-                      <br />
-                      Registernummer: –
-                    </p>
-                  </div>
+                <div className="space-y-4">
 
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Umsatzsteuer-ID (falls vorhanden)
+                      Umsatzsteuer
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
                       Umsatzsteuer-Identifikationsnummer gemäß § 27a UStG: –
+                      <br />
+                      (wird ergänzt, sobald vorhanden)
                     </p>
                   </div>
 
@@ -134,28 +129,29 @@ export default function ImpressumPage() {
                       Verantwortlich i.S.d. § 18 Abs. 2 MStV
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Michael F. E. Eraso Horn, Anschrift wie oben.
+                      Michael F. E. Eraso Horn
+                      <br />
+                      Anschrift wie oben.
                     </p>
                   </div>
 
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Online-Streitbeilegung / Verbraucherstreitbeilegung
+                      Verbraucherstreitbeilegung
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Die Europäische Kommission stellt eine Plattform zur
-                      Online-Streitbeilegung (OS) bereit. Wir sind nicht
-                      verpflichtet und nicht bereit, an Streitbeilegungsverfahren
-                      vor einer Verbraucherschlichtungsstelle teilzunehmen.
+                      Wir sind nicht verpflichtet und nicht bereit,
+                      an Streitbeilegungsverfahren vor einer
+                      Verbraucherschlichtungsstelle teilzunehmen.
                     </p>
                   </div>
+
                 </div>
               </div>
             </div>
 
             <p className="md:col-span-2 text-xs text-slate-400">
-              Hinweis: Dieses Impressum ist eine Vorlage. Ergänze Register- und
-              Steuerangaben nur, wenn sie tatsächlich existieren.
+              Stand: {new Date().toLocaleDateString("de-DE")}
             </p>
           </div>
         </section>

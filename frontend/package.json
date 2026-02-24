@@ -16,6 +16,7 @@
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.80.0",
     "@twilio/voice-sdk": "^2.16.0",
+    "clsx": "^2.1.1",
     "googleapis": "^165.0.0",
     "lucide-react": "^0.555.0",
     "luxon": "^3.7.2",
@@ -40,8 +41,8 @@
     "tailwindcss": "^4",
     "typescript": "^5"
   },
- "overrides":{
-  "qs": "^6.14.1",
-  "jws": "^4.0.0"
- }
+  "overrides": {
+    "qs": "^6.14.1",
+    "jws": "^4.0.0"
+  }
 }

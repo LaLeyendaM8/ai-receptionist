@@ -14,6 +14,7 @@ export default function AGBPage() {
           </p>
         </header>
 
+        {/* 1 */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#3B82F6]">
@@ -24,7 +25,7 @@ export default function AGBPage() {
                 1. Geltungsbereich
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Diese AGB gelten für Unternehmer im Sinne von § 14 BGB.
+                ReceptaAI richtet sich ausschließlich an Unternehmer (B2B).
               </p>
             </div>
           </div>
@@ -32,13 +33,21 @@ export default function AGBPage() {
           <div className="mt-6 space-y-4 text-sm text-slate-600">
             <p>
               Diese Allgemeinen Geschäftsbedingungen gelten für alle Verträge
-              zwischen ReceptaAI und Kunden, die Unternehmer (B2B) sind. Abweichende
-              Bedingungen des Kunden gelten nur, wenn wir ihnen ausdrücklich
-              schriftlich zustimmen.
+              zwischen ReceptaAI (nachfolgend „Anbieter“) und Unternehmern im
+              Sinne von § 14 BGB (nachfolgend „Kunde“).
+            </p>
+            <p>
+              Verbraucher im Sinne von § 13 BGB sind von der Nutzung ausgeschlossen.
+            </p>
+            <p>
+              Abweichende oder ergänzende Bedingungen des Kunden werden nicht
+              Vertragsbestandteil, es sei denn, ihrer Geltung wurde ausdrücklich
+              schriftlich zugestimmt.
             </p>
           </div>
         </section>
 
+        {/* 2 */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500">
@@ -49,23 +58,39 @@ export default function AGBPage() {
                 2. Leistungen
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                SaaS-Service für KI-Telefonassistenz, Terminlogik &amp; FAQs.
+                Cloudbasierte KI-Telefonassistenz (SaaS).
               </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-4 text-sm text-slate-600">
             <p>
-              ReceptaAI stellt eine webbasierte Software (SaaS) zur Verfügung.
-              Funktionsumfang und ggf. Limits ergeben sich aus dem gebuchten Plan.
+              ReceptaAI stellt eine cloudbasierte Software zur Verfügung, die
+              automatisierte Telefonassistenz, Terminverwaltung und FAQ-Logik
+              mittels KI-Technologie ermöglicht.
             </p>
             <p>
-              Wir entwickeln das Produkt kontinuierlich weiter. Änderungen, die
-              den Kernzweck nicht beeinträchtigen, sind zulässig.
+              Die durch ReceptaAI generierten Antworten erfolgen automatisiert
+              auf Grundlage der vom Kunden bereitgestellten Daten und
+              Systemkonfigurationen.
+            </p>
+            <p>
+              Der Anbieter übernimmt keine Gewähr für die inhaltliche
+              Richtigkeit, Vollständigkeit oder rechtliche Zulässigkeit
+              automatisch erzeugter Antworten.
+            </p>
+            <p>
+              Funktionsumfang, Limits und Leistungsgrenzen ergeben sich aus dem
+              jeweils gebuchten Tarif.
+            </p>
+            <p>
+              Der Anbieter ist berechtigt, die Software weiterzuentwickeln,
+              sofern der vertragswesentliche Zweck nicht beeinträchtigt wird.
             </p>
           </div>
         </section>
 
+        {/* 3 */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#3B82F6]">
@@ -76,24 +101,33 @@ export default function AGBPage() {
                 3. Preise, Zahlung, Laufzeit
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Abrechnung nach Plan (monatlich/jährlich), sofern angeboten.
+                Abonnementbasierte Abrechnung.
               </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-4 text-sm text-slate-600">
             <p>
-              Preise ergeben sich aus der jeweils gültigen Preisseite bzw. dem
-              Angebot. Zahlungen erfolgen im Voraus, sofern nicht anders
-              vereinbart.
+              Die Preise ergeben sich aus der jeweils gültigen Preisseite oder
+              einem individuellen Angebot.
             </p>
             <p>
-              Abonnements verlängern sich automatisch um die gebuchte Laufzeit,
-              sofern nicht rechtzeitig gekündigt wird (Details gemäß Billing-Flow).
+              Abonnements werden im Voraus abgerechnet und verlängern sich
+              automatisch um die gebuchte Laufzeit, sofern sie nicht mit einer
+              Frist von 14 Tagen zum Laufzeitende gekündigt werden.
+            </p>
+            <p>
+              Der Anbieter ist berechtigt, Preise mit einer Ankündigungsfrist
+              von mindestens 30 Tagen anzupassen.
+            </p>
+            <p>
+              Bei Zahlungsverzug kann der Zugang zur Plattform vorübergehend
+              gesperrt werden.
             </p>
           </div>
         </section>
 
+        {/* 4 */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-500">
@@ -104,16 +138,21 @@ export default function AGBPage() {
                 4. Pflichten des Kunden
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Rechtmäßige Nutzung, korrekte Daten, Zugangsdaten schützen.
+                Rechtmäßige Nutzung & Einhaltung gesetzlicher Vorschriften.
               </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-3 text-sm text-slate-600">
             <p>
-              Der Kunde ist verantwortlich für die Inhalte und Daten, die er in
-              ReceptaAI speichert oder verarbeiten lässt, sowie für die Einhaltung
-              aller gesetzlichen Pflichten (insb. Datenschutz/Telekommunikation).
+              Der Kunde ist verantwortlich für die Rechtmäßigkeit der Nutzung
+              der Software sowie für die Einhaltung aller gesetzlichen
+              Vorschriften, insbesondere Datenschutz- und Telekommunikationsrecht.
+            </p>
+            <p>
+              Sofern Anrufe aufgezeichnet oder verarbeitet werden, ist der
+              Kunde für die rechtliche Zulässigkeit und etwaige
+              Informationspflichten gegenüber Anrufern verantwortlich.
             </p>
             <p>
               Zugangsdaten sind geheim zu halten. Missbrauch ist unverzüglich zu melden.
@@ -121,40 +160,49 @@ export default function AGBPage() {
           </div>
         </section>
 
+        {/* 5 */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">
-            5. Verfügbarkeit, Support, Wartung
+            5. Drittanbieter & Infrastruktur
           </h2>
           <div className="mt-4 space-y-3 text-sm text-slate-600">
             <p>
-              Wir bemühen uns um eine hohe Verfügbarkeit, können jedoch keine
-              durchgehende, unterbrechungsfreie Verfügbarkeit garantieren.
-              Wartungen und Updates können zu kurzzeitigen Einschränkungen führen.
+              Zur Erbringung der Leistungen nutzt ReceptaAI externe
+              Infrastruktur- und API-Dienstleister (z.B. Telekommunikations-
+              und KI-Anbieter).
+            </p>
+            <p>
+              Der Anbieter übernimmt keine Haftung für Ausfälle,
+              Verzögerungen oder Einschränkungen, die auf Drittanbieter
+              zurückzuführen sind.
             </p>
           </div>
         </section>
 
+        {/* 6 */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">
             6. Haftung
           </h2>
           <div className="mt-4 space-y-3 text-sm text-slate-600">
             <p>
-              Wir haften unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie
-              bei Verletzung von Leben, Körper oder Gesundheit.
+              Wir haften unbeschränkt bei Vorsatz und grober Fahrlässigkeit
+              sowie bei Verletzung von Leben, Körper oder Gesundheit.
             </p>
             <p>
-              Bei einfacher Fahrlässigkeit haften wir nur bei Verletzung wesentlicher
-              Vertragspflichten (Kardinalpflichten) und begrenzt auf den typischerweise
-              vorhersehbaren Schaden.
+              Bei einfacher Fahrlässigkeit haften wir nur bei Verletzung
+              wesentlicher Vertragspflichten und begrenzt auf den
+              typischerweise vorhersehbaren Schaden.
             </p>
-            <p className="text-xs text-slate-400">
-              Hinweis: Diese Vorlage ersetzt keine Rechtsberatung. Für Launch &amp; Scale
-              ggf. einmalig vom Juristen prüfen lassen.
+            <p>
+              Die Haftung ist – außer in Fällen von Vorsatz oder grober
+              Fahrlässigkeit – der Höhe nach auf die im letzten
+              Vertragsjahr gezahlten Gebühren begrenzt.
             </p>
           </div>
         </section>
 
+        {/* 7 */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">
             7. Schlussbestimmungen
@@ -162,11 +210,14 @@ export default function AGBPage() {
           <div className="mt-4 space-y-3 text-sm text-slate-600">
             <p>
               Es gilt deutsches Recht unter Ausschluss des UN-Kaufrechts.
-              Gerichtsstand ist – soweit zulässig – der Sitz des Anbieters.
             </p>
             <p>
-              Sollten einzelne Bestimmungen unwirksam sein, bleibt der Vertrag im
-              Übrigen wirksam.
+              Gerichtsstand ist – soweit gesetzlich zulässig – der Sitz
+              des Anbieters.
+            </p>
+            <p>
+              Sollten einzelne Bestimmungen unwirksam sein, bleibt der
+              Vertrag im Übrigen wirksam.
             </p>
           </div>
         </section>

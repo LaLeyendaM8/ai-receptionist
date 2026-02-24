@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import Image from "next/image";
 
 type FaqItem = {
   question: string;
@@ -178,15 +179,20 @@ export default function HomePage() {
 
             {/* Right – Hero Placeholder */}
             <div className="md:pl-8">
-              <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-                <div className="aspect-video w-full bg-slate-100" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="rounded-full border border-dashed border-slate-300 bg-white/70 px-4 py-2 text-xs font-medium text-slate-500 backdrop-blur">
-                    Platzhalter für Hero-Bild / Video
-                  </div>
-                </div>
-              </div>
-            </div>
+  <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <div className="relative aspect-video w-full">
+      <Image
+        src="/branding/HeroBild.png"
+        alt="ReceptaAI Dashboard & AI Call"
+        fill
+        className="object-cover"
+        priority
+      />
+      {/* leichter Overlay-Glow passend zum Brand */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-blue-600/10 via-transparent to-emerald-500/10" />
+    </div>
+  </div>
+</div>
           </div>
         </section>
 

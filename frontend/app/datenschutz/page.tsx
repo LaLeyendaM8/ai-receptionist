@@ -20,11 +20,11 @@ export default function DatenschutzPage() {
             Datenschutzerklärung
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Informationen zur Verarbeitung personenbezogener Daten gemäß DSGVO
-            (B2B).
+            Informationen zur Verarbeitung personenbezogener Daten gemäß DSGVO (B2B).
           </p>
         </header>
 
+        {/* Verantwortlicher */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#3B82F6]">
@@ -35,84 +35,32 @@ export default function DatenschutzPage() {
                 Verantwortlicher
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Wer entscheidet über Zwecke und Mittel der Verarbeitung.
+                Verantwortlich für die Datenverarbeitung auf dieser Website.
               </p>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Anbieter
-              </p>
-              <p className="mt-1 text-sm text-slate-900">ReceptaAI</p>
-
-              <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
-                Inhaber
-              </p>
-              <p className="mt-1 text-sm text-slate-900">
-                Michael F. E. Eraso Horn
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
-              <div className="flex items-start gap-2">
-                <MapPin className="mt-0.5 h-4 w-4 text-slate-400" />
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Anschrift
-                  </p>
-                  <p className="mt-1 text-sm text-slate-900">
-                    Hafnerweg 19
-                    <br />
-                    89231 Neu-Ulm
-                    <br />
-                    Deutschland
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2">
-                <Mail className="mt-0.5 h-4 w-4 text-slate-400" />
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                    Kontakt
-                  </p>
-                  <p className="mt-1 text-sm">
-                    <a
-                      href="mailto:info@receptaai.de"
-                      className="text-[#3B82F6] hover:underline"
-                    >
-                      info@receptaai.de
-                    </a>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold text-slate-900">
-                Überblick (kurz)
-              </h3>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>
-                  • Wir verarbeiten Daten zur Bereitstellung unserer Website und
-                  unseres SaaS-Dienstes (B2B).
-                </li>
-                <li>
-                  • Bei Kontaktanfragen verarbeiten wir deine Angaben zur
-                  Bearbeitung der Anfrage.
-                </li>
-                <li>
-                  • Im Produkt werden je nach Nutzung u. a. Anruf-/Termin- und
-                  Konfigurationsdaten verarbeitet (im Auftrag unserer Kunden).
-                </li>
-              </ul>
-            </div>
+          <div className="mt-6 space-y-4 text-sm text-slate-600">
+            <p className="text-slate-900 font-medium">ReceptaAI</p>
+            <p>Inhaber: Michael F. E. Eraso Horn</p>
+            <p>
+              Hafnerweg 19<br />
+              89231 Neu-Ulm<br />
+              Deutschland
+            </p>
+            <p>
+              E-Mail:{" "}
+              <a
+                href="mailto:info@receptaai.de"
+                className="text-[#3B82F6] hover:underline"
+              >
+                info@receptaai.de
+              </a>
+            </p>
           </div>
         </section>
 
-        {/* Website / Server Logs */}
+        {/* Server Logs */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500">
@@ -122,26 +70,21 @@ export default function DatenschutzPage() {
               <h2 className="text-base font-semibold text-slate-900">
                 Zugriffsdaten / Server-Logs
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Technisch notwendige Daten bei Aufruf der Website.
-              </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-3 text-sm text-slate-600">
             <p>
-              Beim Aufruf unserer Website werden durch den Hosting-Provider
-              automatisch Informationen erfasst (z. B. IP-Adresse in gekürzter/
-              pseudonymisierter Form, Datum/Uhrzeit, aufgerufene Seite, User-Agent,
-              Referrer). Die Verarbeitung erfolgt zur{" "}
-              <span className="text-slate-900">
-                Gewährleistung von Stabilität und Sicherheit
-              </span>{" "}
+              Beim Besuch unserer Website werden automatisch Informationen
+              durch unseren Hosting-Provider erfasst (z. B. IP-Adresse,
+              Datum/Uhrzeit, aufgerufene Seite, Browsertyp).
+            </p>
+            <p>
+              Diese Daten dienen der technischen Bereitstellung und Sicherheit
               der Website.
             </p>
             <p>
-              <span className="text-slate-900 font-medium">Rechtsgrundlage:</span>{" "}
-              Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse).
+              Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse).
             </p>
           </div>
         </section>
@@ -154,29 +97,23 @@ export default function DatenschutzPage() {
             </div>
             <div>
               <h2 className="text-base font-semibold text-slate-900">
-                Cookies & lokale Speicherung
+                Cookies
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Session-/Login-Funktionen, ggf. notwendige Cookies.
-              </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-3 text-sm text-slate-600">
             <p>
-              Wir verwenden Cookies bzw. ähnliche Technologien, soweit sie für
-              den Betrieb der Website und des Logins notwendig sind (z. B.
-              Session-Cookies).
+              Wir verwenden ausschließlich technisch notwendige Cookies
+              (z. B. für Login-Session).
             </p>
             <p>
-              <span className="text-slate-900 font-medium">Rechtsgrundlage:</span>{" "}
-              Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse) bzw. § 25 Abs. 2
-              TTDSG (technisch erforderlich).
+              Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO i.V.m. § 25 Abs. 2 TTDSG.
             </p>
           </div>
         </section>
 
-        {/* SaaS / Daten im Auftrag */}
+        {/* SaaS / Auftragsverarbeitung */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500">
@@ -184,33 +121,88 @@ export default function DatenschutzPage() {
             </div>
             <div>
               <h2 className="text-base font-semibold text-slate-900">
-                Daten im SaaS (B2B) / Auftragsverarbeitung
+                SaaS-Dienst / Auftragsverarbeitung
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Wenn unsere Kunden personenbezogene Daten ihrer Endkunden
-                verarbeiten.
-              </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-3 text-sm text-slate-600">
             <p>
-              Unser Dienst richtet sich an Unternehmen. Unsere Kunden können in
-              ReceptaAI z. B. Kontakt- oder Termindaten ihrer Endkunden
-              verarbeiten. In diesen Fällen verarbeiten wir diese Daten{" "}
-              <span className="text-slate-900">
-                als Auftragsverarbeiter
-              </span>{" "}
-              im Auftrag des Kunden.
+              ReceptaAI richtet sich an Unternehmen. Unsere Kunden können
+              personenbezogene Daten ihrer Endkunden (z. B. Name,
+              Telefonnummer, Termindaten) verarbeiten.
             </p>
             <p>
-              <span className="text-slate-900 font-medium">Rechtsgrundlage:</span>{" "}
-              Art. 28 DSGVO (Auftragsverarbeitung) sowie der Vertrag mit dem Kunden.
+              In diesen Fällen verarbeiten wir diese Daten ausschließlich
+              als Auftragsverarbeiter gemäß Art. 28 DSGVO im Auftrag
+              unseres jeweiligen Kunden.
+            </p>
+            <p>
+              Der jeweilige Geschäftskunde bleibt Verantwortlicher im
+              Sinne der DSGVO.
             </p>
           </div>
         </section>
 
-        {/* Sicherheitsmaßnahmen / Rechte */}
+        {/* KI & Telefonie */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-slate-900">
+            KI-gestützte Telefonverarbeitung
+          </h2>
+
+          <div className="mt-4 space-y-3 text-sm text-slate-600">
+            <p>
+              Unser Dienst nutzt KI-Technologien zur automatisierten
+              Verarbeitung von Anrufen und Anfragen.
+            </p>
+            <p>
+              Dabei können Gesprächsinhalte, Telefonnummern und
+              Terminangaben verarbeitet werden.
+            </p>
+            <p>
+              Die Verarbeitung erfolgt entweder im Rahmen einer
+              Auftragsverarbeitung oder auf Grundlage berechtigter
+              Interessen des Kunden.
+            </p>
+          </div>
+        </section>
+
+        {/* Drittanbieter */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-slate-900">
+            Eingesetzte Dienstleister
+          </h2>
+
+          <div className="mt-4 space-y-3 text-sm text-slate-600">
+            <p>
+              Zur Bereitstellung unseres Dienstes nutzen wir externe
+              Infrastruktur- und API-Anbieter (z. B. Hosting, KI-Services,
+              Telekommunikationsanbieter).
+            </p>
+            <p>
+              Dabei kann eine Datenübermittlung in Drittländer erfolgen.
+              In diesen Fällen erfolgt die Übermittlung auf Grundlage
+              geeigneter Garantien (z. B. EU-Standardvertragsklauseln).
+            </p>
+          </div>
+        </section>
+
+        {/* Speicherdauer */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-slate-900">
+            Speicherdauer
+          </h2>
+
+          <div className="mt-4 space-y-3 text-sm text-slate-600">
+            <p>
+              Personenbezogene Daten werden nur so lange gespeichert,
+              wie dies für die jeweiligen Zwecke erforderlich ist oder
+              gesetzliche Aufbewahrungspflichten bestehen.
+            </p>
+          </div>
+        </section>
+
+        {/* Rechte */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#3B82F6]">
@@ -218,27 +210,24 @@ export default function DatenschutzPage() {
             </div>
             <div>
               <h2 className="text-base font-semibold text-slate-900">
-                Betroffenenrechte & Sicherheit
+                Betroffenenrechte
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Auskunft, Löschung, Berichtigung &amp; Co.
-              </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-3 text-sm text-slate-600">
             <p>
-              Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung
-              der Verarbeitung, Datenübertragbarkeit sowie Widerspruch, soweit
-              die gesetzlichen Voraussetzungen vorliegen.
+              Betroffene haben das Recht auf Auskunft, Berichtigung,
+              Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit
+              sowie Widerspruch.
             </p>
             <p>
-              Außerdem besteht ein Beschwerderecht bei einer Datenschutzaufsichtsbehörde.
+              Zudem besteht ein Beschwerderecht bei einer zuständigen
+              Datenschutzaufsichtsbehörde.
             </p>
             <p className="text-xs text-slate-400">
-              Hinweis: Wenn du Endkunde eines unserer Geschäftskunden bist, wende dich
-              bitte primär an das Unternehmen, bei dem du Kunde bist, da dieses
-              in der Regel Verantwortlicher ist.
+              Wenn Sie Endkunde eines unserer Geschäftskunden sind,
+              wenden Sie sich bitte zunächst an das jeweilige Unternehmen.
             </p>
           </div>
         </section>
