@@ -178,18 +178,28 @@ export default function HomePage() {
             </div>
 
             {/* Right – Hero Placeholder */}
-            <div className="md:pl-8">
-  <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-    <div className="relative aspect-video w-full">
-      <Image
-        src="/branding/HeroBild.png"
-        alt="ReceptaAI Dashboard & AI Call"
-        fill
-        className="object-cover"
-        priority
-      />
-      {/* leichter Overlay-Glow passend zum Brand */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-blue-600/10 via-transparent to-emerald-500/10" />
+<div className="md:pl-8">
+  <div className="relative">
+    {/* Glow */}
+    <div className="pointer-events-none absolute -inset-6 rounded-[32px] bg-blue-500/10 blur-2xl" />
+
+    {/* Card */}
+    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,0.35)]">
+      <div className="relative aspect-video w-full">
+        <Image
+          src="/branding/HeroBild.png"
+          alt="ReceptaAI Dashboard & AI Call"
+          fill
+          className="object-cover"
+          priority
+        />
+
+        {/* rechte Blur-Edge (subtil) */}
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-white/70 to-transparent blur-[2px]" />
+
+        {/* optional: very subtle top highlight */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-blue-600/10 via-transparent to-emerald-500/10" />
+      </div>
     </div>
   </div>
 </div>
