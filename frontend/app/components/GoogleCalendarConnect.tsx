@@ -94,12 +94,12 @@ export default function GoogleCalendarConnect({ returnTo }: Props) {
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
           <button
             type="button"
             onClick={handleConnectClick}
             disabled={status === "loading"}
-            className="inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isConnected ? "Erneut verbinden" : "Mit Google verbinden"}
           </button>

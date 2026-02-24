@@ -161,134 +161,208 @@ export default async function AppointmentsPage() {
       </section>
 
       {/* Terminliste */}
-      <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <CalendarClock className="h-4 w-4 text-[#3B82F6]" />
-          <h2 className="text-sm font-medium text-[#1E293B]">
-            Gebuchte Termine
-          </h2>
-        </div>
+<section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+  <div className="mb-4 flex items-center gap-2">
+    <CalendarClock className="h-4 w-4 text-[#3B82F6]" />
+    <h2 className="text-sm font-medium text-[#1E293B]">Gebuchte Termine</h2>
+  </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm text-[#1E293B]">
-            <thead>
-              <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs text-[#64748B]">
-                <th className="px-4 py-3">Kunde</th>
-                <th className="px-4 py-3">Datum</th>
-                <th className="px-4 py-3">Dienstleistung</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Aktionen</th>
-              </tr>
-            </thead>
+  {/* DESKTOP TABLE */}
+  <div className="hidden md:block overflow-x-auto">
+    <table className="min-w-full text-left text-sm text-[#1E293B]">
+      <thead>
+        <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs text-[#64748B]">
+          <th className="px-4 py-3">Kunde</th>
+          <th className="px-4 py-3">Datum</th>
+          <th className="px-4 py-3">Dienstleistung</th>
+          <th className="px-4 py-3">Status</th>
+          <th className="px-4 py-3 text-right">Aktionen</th>
+        </tr>
+      </thead>
 
-            <tbody>
-              {rows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-6 text-center text-sm text-[#94A3B8]"
+      <tbody>
+        {rows.length === 0 && (
+          <tr>
+            <td colSpan={5} className="px-4 py-6 text-center text-sm text-[#94A3B8]">
+              Noch keine Termine vorhanden.
+            </td>
+          </tr>
+        )}
+
+        {rows.map((a: any) => {
+          const statusValue = (a.status ?? "").toLowerCase();
+          const isBooked = statusValue === "booked";
+          const isCancelled = statusValue === "cancelled";
+
+          return (
+            <tr
+              key={a.id}
+              className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC]"
+            >
+              <td className="px-4 py-3 align-top">
+                <div className="flex flex-col text-sm text-[#1E293B]">
+                  <span>{a.customer_name ?? "Unbekannter Kunde"}</span>
+                  <span className="text-xs text-[#64748B]">
+                    {a.customer_phone ?? ""}
+                  </span>
+                </div>
+              </td>
+
+              <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
+                <div className="flex flex-col">
+                  <span>{formatDate(a.start_at)}</span>
+                  <span className="text-xs text-[#64748B]">
+                    {formatTime(a.start_at)} Uhr
+                  </span>
+                </div>
+              </td>
+
+              <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
+                {a.title ?? "Termin"}
+              </td>
+
+              <td className="px-4 py-3 align-top">
+                <span
+                  className={
+                    "inline-flex rounded-full px-3 py-1 text-xs font-medium " +
+                    getStatusBadgeClasses(a.status)
+                  }
+                >
+                  {a.status ?? "Unbekannt"}
+                </span>
+              </td>
+
+              <td className="px-4 py-3 align-top text-right">
+                <div className="inline-flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled
+                    className={[
+                      "inline-flex h-8 w-8 items-center justify-center rounded-full",
+                      "bg-emerald-50 text-emerald-600",
+                      "opacity-50 cursor-not-allowed",
+                    ].join(" ")}
+                    title={isBooked ? "Bereits bestätigt" : "Kommt bald (Approve-Workflow)"}
                   >
-                    Noch keine Termine vorhanden.
-                  </td>
-                </tr>
+                    <Check className="h-3 w-3" />
+                  </button>
+
+                  <form action={cancelAppointmentAction}>
+                    <input type="hidden" name="id" value={a.id} />
+                    <button
+                      type="submit"
+                      disabled={isCancelled}
+                      className={[
+                        "inline-flex h-8 w-8 items-center justify-center rounded-full",
+                        "bg-rose-50 text-rose-600 hover:bg-rose-100",
+                        isCancelled ? "opacity-50 cursor-not-allowed" : "",
+                      ].join(" ")}
+                      title={isCancelled ? "Bereits abgesagt" : "Absagen"}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </form>
+
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
+                    title="Mehr (kommt später)"
+                  >
+                    <MoreHorizontal className="h-3 w-3" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+
+  {/* MOBILE CARDS */}
+  <div className="mt-3 space-y-3 md:hidden">
+    {rows.length === 0 && (
+      <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-xs text-[#64748B]">
+        Noch keine Termine vorhanden.
+      </div>
+    )}
+
+    {rows.map((a: any) => {
+      const statusValue = (a.status ?? "").toLowerCase();
+      const isBooked = statusValue === "booked";
+      const isCancelled = statusValue === "cancelled";
+
+      return (
+        <div key={a.id} className="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-[#1E293B]">
+                {a.customer_name ?? "Unbekannter Kunde"}
+              </div>
+              {a.customer_phone && (
+                <div className="mt-0.5 text-xs text-[#64748B]">{a.customer_phone}</div>
               )}
+              <div className="mt-2 text-xs text-[#64748B]">
+                {formatDate(a.start_at)} • {formatTime(a.start_at)} Uhr
+              </div>
+              <div className="mt-1 text-xs text-[#64748B]">
+                {a.title ?? "Termin"}
+              </div>
+            </div>
 
-              {rows.map((a: any) => {
-                const statusValue = (a.status ?? "").toLowerCase();
-                const isBooked = statusValue === "booked";
-                const isCancelled = statusValue === "cancelled";
+            <span
+              className={
+                "inline-flex h-fit rounded-full px-3 py-1 text-xs font-medium " +
+                getStatusBadgeClasses(a.status)
+              }
+            >
+              {a.status ?? "Unbekannt"}
+            </span>
+          </div>
 
-                return (
-                  <tr
-                    key={a.id}
-                    className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC]"
-                  >
-                    <td className="px-4 py-3 align-top">
-                      <div className="flex flex-col text-sm text-[#1E293B]">
-                        <span>{a.customer_name ?? "Unbekannter Kunde"}</span>
-                        <span className="text-xs text-[#64748B]">
-                          {a.customer_phone ?? ""}
-                        </span>
-                      </div>
-                    </td>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled
+              className={[
+                "inline-flex h-9 w-9 items-center justify-center rounded-full",
+                "bg-emerald-50 text-emerald-600",
+                "opacity-50 cursor-not-allowed",
+              ].join(" ")}
+              title={isBooked ? "Bereits bestätigt" : "Kommt bald (Approve-Workflow)"}
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
 
-                    <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
-                      <div className="flex flex-col">
-                        <span>{formatDate(a.start_at)}</span>
-                        <span className="text-xs text-[#64748B]">
-                          {formatTime(a.start_at)} Uhr
-                        </span>
-                      </div>
-                    </td>
+            <form action={cancelAppointmentAction}>
+              <input type="hidden" name="id" value={a.id} />
+              <button
+                type="submit"
+                disabled={isCancelled}
+                className={[
+                  "inline-flex h-9 w-9 items-center justify-center rounded-full",
+                  "bg-rose-50 text-rose-600 hover:bg-rose-100",
+                  isCancelled ? "opacity-50 cursor-not-allowed" : "",
+                ].join(" ")}
+                title={isCancelled ? "Bereits abgesagt" : "Absagen"}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </form>
 
-                    <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
-                      {a.title ?? "Termin"}
-                    </td>
-
-                    <td className="px-4 py-3 align-top">
-                      <span
-                        className={
-                          "inline-flex rounded-full px-3 py-1 text-xs font-medium " +
-                          getStatusBadgeClasses(a.status)
-                        }
-                      >
-                        {a.status ?? "Unbekannt"}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-3 align-top text-right">
-                      <div className="inline-flex items-center gap-2">
-                        {/* ✅ Confirm (disabled MVP, weil Auto-Confirm) */}
-                        <button
-                          type="button"
-                          disabled
-                          className={[
-                            "inline-flex h-8 w-8 items-center justify-center rounded-full",
-                            "bg-emerald-50 text-emerald-600",
-                            "opacity-50 cursor-not-allowed",
-                          ].join(" ")}
-                          title={
-                            isBooked
-                              ? "Bereits bestätigt"
-                              : "Kommt bald (Approve-Workflow)"
-                          }
-                        >
-                          <Check className="h-3 w-3" />
-                        </button>
-
-                        {/* ❌ Cancel (funktional) */}
-                        <form action={cancelAppointmentAction}>
-                          <input type="hidden" name="id" value={a.id} />
-                          <button
-                            type="submit"
-                            disabled={isCancelled}
-                            className={[
-                              "inline-flex h-8 w-8 items-center justify-center rounded-full",
-                              "bg-rose-50 text-rose-600 hover:bg-rose-100",
-                              isCancelled ? "opacity-50 cursor-not-allowed" : "",
-                            ].join(" ")}
-                            title={isCancelled ? "Bereits abgesagt" : "Absagen"}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </form>
-
-                        <button
-                          type="button"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
-                          title="Mehr (kommt später)"
-                        >
-                          <MoreHorizontal className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]"
+              title="Mehr (kommt später)"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      </section>
+      );
+    })}
+  </div>
+</section>
     </div>
   );
 }

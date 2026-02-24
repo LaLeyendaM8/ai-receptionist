@@ -32,8 +32,8 @@ export default function SignupForm() {
   // ---------- Kein gültiger Checkout in der URL ----------
   if (!sessionId) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white shadow-md p-8 space-y-6">
+      <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white shadow-md p-6 sm:p-8 space-y-6">
           <div className="flex flex-col items-center gap-3 text-center">
             <Image
               src="/branding/ReceptaAI-logo-horizontal-de.svg"
@@ -163,8 +163,8 @@ export default function SignupForm() {
 
   // ---------- Normale Signup-UI ----------
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white shadow-md p-8 space-y-8">
+    <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white shadow-md p-6 sm:p-8 space-y-8">
         {/* Logo + Intro */}
         <div className="flex flex-col items-center gap-3 text-center">
           <Image

@@ -1205,14 +1205,14 @@ if (nextAppointment.date && !nextAppointment.time && !nextAppointment.serviceNam
 
     const startISOpre = localDateTimeToUTCISO(dateStr, timeStr, timezone);
     if (!startISOpre) {
-      return await needInfo("time", "Die Uhrzeit ist ungültig. Bitte im Format HH:MM (24h).");
+      return await needInfo("time", "Die Uhrzeit habe ich nicht ganz verstanden. Sagen Sie bitte zum Beispiel  ‚15 Uhr‘ oder ‚16:30‘.")
     }
 
     const startAtPre = new Date(startISOpre);
     if (startAtPre.getTime() <= Date.now()) {
       return await needInfo(
         "date",
-        "Das Datum liegt in der Vergangenheit. Welches zukünftige Datum passt Ihnen? (Bitte YYYY-MM-DD)"
+        "Das Datum liegt in der Vergangenheit. Welches zukünftige Datum passt Ihnen? Sagen Sie bitte zum Beispiel  ‚08.02.2026‘."
       );
     }
 
@@ -1260,7 +1260,7 @@ const svc = await getServiceByMessage(supabase, clientId, serviceText);
 if (!svc) {
   return await needInfo(
     "service",
-    "Für welche Leistung möchten Sie genau buchen? (z. B. Haarschnitt, Färben, Maniküre)"
+    "Für welche Leistung möchten Sie genau buchen? Zum Beispiel Beratung oder Behandlung."
   );
 }
 
@@ -1295,7 +1295,7 @@ if (!svc) {
 
     const customerName: string | null = nextAppointment.customerName ?? null;
     const customerPhone: string | null = nextAppointment.phone ?? null;
-    const needsCustomerName = !customerName;
+    const needsCustomerName = !customerName || customerName.trim().length === 0;
 
     // STAFF-LOGIK
     let staffId: string | null = null;
@@ -1542,7 +1542,7 @@ if (!svc) {
       : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
 
     const preview = `„${svc.title}“ am ${dateSpoken} um ${timeSpoken}${customerPart}${staffPart}`;
-    const phrase = `${staffNote} Ich habe ${preview} eingetragen. Passt das so?`;
+    const phrase = `${staffNote}Ich habe ${preview} eingetragen. Passt das so?`.trim();
 
     return { status: "confirm", draftId: draft.id, preview, phrase };
   } catch (err: unknown) {

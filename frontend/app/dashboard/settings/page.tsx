@@ -505,20 +505,21 @@ export default async function SettingsPage() {
             />
           </label>
 
-          <div className="md:col-span-2 flex items-center justify-end gap-3 pt-2">
-            <button
-              type="reset"
-              className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-xs font-medium text-[#64748B]"
-            >
-              Änderungen verwerfen
-            </button>
-            <button
-              type="submit"
-              className="rounded-lg bg-[#10B981] px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#059669]"
-            >
-              Einstellungen speichern
-            </button>
-          </div>
+         <div className="md:col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
+  <button
+    type="reset"
+    className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2 text-xs font-medium text-[#64748B] sm:w-auto"
+  >
+    Änderungen verwerfen
+  </button>
+
+  <button
+    type="submit"
+    className="w-full rounded-lg bg-[#10B981] px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#059669] sm:w-auto"
+  >
+    Einstellungen speichern
+  </button>
+</div>
         </form>
       </section>
 

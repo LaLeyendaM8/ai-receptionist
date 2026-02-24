@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { createClients } from "@/lib/supabaseClients";
 import { getCurrentUserId } from "@/lib/authServer";
-import { Sidebar } from "./_components/Sidebar";
+import { DashboardChrome } from "./_components/DashboardChrome";
 
 type ClientRow = {
   id: string;
@@ -51,29 +51,9 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  return (
-    <main className="min-h-screen bg-[#F8FAFC] text-[#1E293B]">
-      <div className="flex h-screen">
-        {/* Sidebar links */}
-        <Sidebar logoutAction={logoutAction} />
-
-        {/* Content rechts */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Hinweis, falls kein aktives Abo */}
-          {!hasActiveSub && (
-            <div className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-900">
-              <p className="font-medium">Kein aktives Abonnement</p>
-              <p className="text-xs">
-                Du hast aktuell noch kein aktives ReceptaAI-Abo. Bitte schließe
-                dein Abo über die Landingpage ab.
-              </p>
-            </div>
-          )}
-
-          {/* Dashboard-Content mit 24px Padding (Figma-Spec) */}
-          <div className="px-6 py-6">{children}</div>
-        </div>
-      </div>
-    </main>
-  );
+return (
+  <DashboardChrome logoutAction={logoutAction} hasActiveSub={hasActiveSub}>
+    {children}
+  </DashboardChrome>
+);
 }

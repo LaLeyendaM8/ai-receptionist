@@ -68,7 +68,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* HEADER */}
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <a href="#hero" className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
               {/* simpler Phone-Icon als Platzhalter */}
@@ -96,12 +96,12 @@ export default function HomePage() {
           </nav>
 
           {/* Mobile: nur Login */}
-          <a
-            href="/login"
-            className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-blue-500 hover:text-blue-600 md:hidden"
-          >
-            Login
-          </a>
+         <a
+  href="/login"
+  className="inline-flex h-10 items-center rounded-full border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:border-blue-500 hover:text-blue-600 md:hidden"
+>
+  Login
+</a>
         </div>
       </header>
 
@@ -111,7 +111,7 @@ export default function HomePage() {
           id="hero"
           className="bg-gradient-to-b from-sky-50 to-slate-50"
         >
-          <div className="mx-auto flex max-w-6xl flex-col gap-12 px-6 py-16 md:grid md:grid-cols-2 md:items-center">
+          <div className="mx-auto flex max-w-6xl flex-col gap-12 px-4 py-16 sm:px-6 md:grid md:grid-cols-2 md:items-center">
             {/* Left */}
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
@@ -135,15 +135,15 @@ export default function HomePage() {
                   type="button"
                   onClick={startCheckout}
                   disabled={loading}
-                  className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-blue-700 disabled:opacity-70"
+                 className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-blue-700 disabled:opacity-70 sm:w-auto"
                 >
                   {loading ? "Weiterleitung zu Stripe..." : "Jetzt starten"}
                 </button>
 
-                <a
-                  href="#features"
-                  className="inline-flex items-center justify-center rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 hover:border-blue-500 hover:text-blue-600"
-                >
+               <a
+  href="#features"
+  className="inline-flex w-full items-center justify-center rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 hover:border-blue-500 hover:text-blue-600 sm:w-auto"
+>
                   Mehr über Features
                 </a>
               </div>
@@ -159,7 +159,7 @@ export default function HomePage() {
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                     DSGVO
                   </span>
-                  <span>100&nbsp;% DSGVO-konform</span>
+                  <span>DSGVO-konform</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
@@ -192,7 +192,7 @@ export default function HomePage() {
 
         {/* SO FUNKTIONIERT'S */}
         <section className="border-t border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <div className="text-center">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-blue-600">
                 So funktioniert&apos;s
@@ -249,7 +249,7 @@ export default function HomePage() {
 
         {/* VALUE / PAINPOINTS */}
         <section className="bg-slate-50">
-          <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 ">
             <div className="text-center">
               <p className="text-sm font-semibold text-blue-600">
                 Mehr Zeit, mehr Umsatz
@@ -314,7 +314,7 @@ export default function HomePage() {
 
         {/* FEATURES */}
         <section id="features" className="border-t border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 ">
             <div className="text-center">
               <p className="text-sm font-semibold text-blue-600">
                 Leistungsstarke Features
@@ -380,7 +380,7 @@ export default function HomePage() {
 
         {/* TRUST BADGES */}
         <section className="bg-sky-50">
-          <div className="mx-auto max-w-6xl px-6 py-12">
+          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 ">
             <div className="rounded-2xl bg-white p-6 shadow-sm md:p-8">
               <div className="grid gap-6 text-sm text-slate-700 md:grid-cols-4">
                 <div className="flex items-start gap-3">
@@ -441,7 +441,7 @@ export default function HomePage() {
           id="pricing"
           className="border-t border-slate-200 bg-white"
         >
-          <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 ">
             <div className="text-center">
               <p className="text-sm font-semibold text-blue-600">
                 Transparente Preise
@@ -499,7 +499,7 @@ export default function HomePage() {
 
         {/* FAQ */}
         <section id="faq" className="bg-slate-50">
-          <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 ">
             <div className="text-center">
               <p className="text-sm font-semibold text-blue-600">
                 Häufig gestellte Fragen
@@ -535,7 +535,7 @@ export default function HomePage() {
 
         {/* BOTTOM CTA */}
         <section className="bg-gradient-to-r from-sky-700 to-blue-700 text-white">
-          <div className="mx-auto max-w-6xl px-6 py-14 text-center">
+          <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6  text-center">
             <p className="text-sm font-semibold uppercase tracking-wide">
               Bereit für 24/7 Kundenbetreuung?
             </p>
@@ -566,7 +566,7 @@ export default function HomePage() {
 
 {/* FOOTER */}
 <footer className="border-t border-slate-200 bg-white">
-  <div className="mx-auto max-w-6xl px-6 py-10">
+  <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 ">
     <div className="grid gap-8 md:grid-cols-4">
       <div className="space-y-3">
         <div className="flex items-center gap-2">

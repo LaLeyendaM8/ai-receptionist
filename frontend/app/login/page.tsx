@@ -25,15 +25,12 @@ export default function LoginPage() {
     try {
       setLoading(true);
 
-      const { error: loginError } = await supabaseBrowser.auth.signInWithPassword(
-        {
-          email,
-          password,
-        }
-      );
+      const { error: loginError } = await supabaseBrowser.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (loginError) {
-        // Supabase-Fehlertext nicht 1:1 zeigen, sondern etwas freundlicher
         setError("Login fehlgeschlagen. Bitte Zugangsdaten prüfen.");
         return;
       }
@@ -48,27 +45,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-background flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-md border border-brand-border p-8 space-y-8">
+    <div className="min-h-screen bg-brand-background flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-md border border-brand-border p-6 sm:p-8 space-y-7">
         {/* Logo / Brand */}
         <div className="flex items-center justify-center gap-3">
           <div className="h-10 w-10 rounded-2xl bg-brand-primary/10 flex items-center justify-center">
-            {/* kleines Telefon-Icon als Platzhalter – kann später mit echtem SVG ersetzt werden */}
             <span className="text-brand-primary text-lg">📞</span>
           </div>
           <div>
             <p className="text-sm text-gray-500">Willkommen zurück bei</p>
-            <p className="text-lg" style={{ fontWeight: 600 }}>
-              ReceptaAI
-            </p>
+            <p className="text-lg font-semibold">ReceptaAI</p>
           </div>
         </div>
 
         {/* Headline + Copy */}
         <div className="space-y-1 text-center">
-          <h1 className="text-xl" style={{ fontWeight: 600 }}>
-            In dein Dashboard einloggen
-          </h1>
+          <h1 className="text-xl font-semibold">In dein Dashboard einloggen</h1>
           <p className="text-sm text-gray-500">
             Verwalte Anrufe, Termine und Einstellungen deiner ReceptaAI-Instanz.
           </p>
@@ -117,12 +109,11 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Optional: kleiner Hinweis unten */}
         <p className="text-[13px] text-gray-400 text-center">
           Probleme beim Login?{" "}
-          <span className="text-brand-primary">
-            Wende dich an den Support.
-          </span>
+          <a className="text-brand-primary hover:underline" href="mailto:info@receptaai.de">
+            Support kontaktieren
+          </a>
         </p>
       </div>
     </div>

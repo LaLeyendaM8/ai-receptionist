@@ -197,47 +197,73 @@ export default function SettingsEditor({
             const label = WEEKDAYS.find((w) => w.weekday === row.weekday)?.label ?? `Tag ${row.weekday}`;
             return (
               <div
-                key={row.weekday}
-                className="grid items-center gap-3 rounded-xl bg-[#F8FAFC] px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
-              >
-                {/* parallel arrays for server action */}
-                <input type="hidden" name="bh_weekday" value={row.weekday} />
-                <input type="hidden" name="bh_closed" value={row.closed ? "1" : "0"} />
+  key={row.weekday}
+  className={[
+    "rounded-xl bg-[#F8FAFC] px-4 py-3",
+    "md:grid md:items-center md:gap-3 md:rounded-xl md:bg-[#F8FAFC]",
+    "md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]",
+  ].join(" ")}
+>
+  {/* parallel arrays for server action */}
+  <input type="hidden" name="bh_weekday" value={row.weekday} />
+  <input type="hidden" name="bh_closed" value={row.closed ? "1" : "0"} />
 
-                <div className="text-sm font-medium text-[#1E293B]">{label}</div>
+  {/* Day */}
+  <div className="text-sm font-medium text-[#1E293B] md:col-auto">
+    {label}
+  </div>
 
-                <input
-                  name="bh_open"
-                  type="time"
-                  value={row.open}
-                  disabled={row.closed}
-                  onChange={(e) => patchBH(idx, { open: e.target.value })}
-                  className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
-                />
+  {/* Mobile: times as 2-column */}
+  <div className="mt-3 grid grid-cols-2 gap-3 md:mt-0 md:contents">
+    <div className="space-y-1 md:col-auto">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-[#64748B] md:hidden">
+        Von
+      </div>
+      <input
+        name="bh_open"
+        type="time"
+        value={row.open}
+        disabled={row.closed}
+        onChange={(e) => patchBH(idx, { open: e.target.value })}
+        className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
+      />
+    </div>
 
-                <input
-                  name="bh_close"
-                  type="time"
-                  value={row.close}
-                  disabled={row.closed}
-                  onChange={(e) => patchBH(idx, { close: e.target.value })}
-                  className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
-                />
+    <div className="space-y-1 md:col-auto">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-[#64748B] md:hidden">
+        Bis
+      </div>
+      <input
+        name="bh_close"
+        type="time"
+        value={row.close}
+        disabled={row.closed}
+        onChange={(e) => patchBH(idx, { close: e.target.value })}
+        className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:bg-slate-100"
+      />
+    </div>
+  </div>
 
-                <label className="inline-flex items-center justify-end gap-2 text-xs text-[#64748B]">
-                  <input
-                    type="checkbox"
-                    checked={row.closed}
-                    onChange={(e) => {
-                      const closed = e.target.checked;
-                      // wenn geschlossen: Zeitinputs disabled + server speichert 0/0 (deine Action macht das)
-                      patchBH(idx, { closed });
-                    }}
-                    className="h-4 w-4 rounded border-slate-300 text-[#3B82F6]"
-                  />
-                  Geschlossen
-                </label>
-              </div>
+  {/* Closed toggle */}
+  <div className="mt-3 flex justify-end md:mt-0 md:col-auto">
+    <label className="inline-flex items-center gap-2 text-xs text-[#64748B]">
+      <input
+        type="checkbox"
+        checked={row.closed}
+        onChange={(e) => patchBH(idx, { closed: e.target.checked })}
+        className="h-4 w-4 rounded border-slate-300 text-[#3B82F6]"
+      />
+      Geschlossen
+    </label>
+  </div>
+
+  {/* Optional mobile hint */}
+  {row.closed && (
+    <p className="mt-2 text-xs text-slate-400 md:hidden">
+      Dieser Tag wird bei Terminbuchungen übersprungen.
+    </p>
+  )}
+</div>
             );
           })}
 
@@ -340,7 +366,7 @@ export default function SettingsEditor({
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() =>
@@ -462,7 +488,7 @@ export default function SettingsEditor({
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() =>

@@ -610,76 +610,78 @@ export default function OnboardingPage() {
             </div>
 
             <div className="mt-4 space-y-3">
-              {staff.map((s, idx) => (
-                <div
-                  key={idx}
-                  className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto]"
-                >
-                  <input
-                    type="text"
-                    placeholder="Name"
-                    value={s.name}
-                    onChange={(e) =>
-                      updateStaff(idx, { name: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Google Kalender ID (optional)"
-                    value={s.calendarId}
-                    onChange={(e) =>
-                      updateStaff(idx, { calendarId: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
-                  />
+  {staff.map((s, idx) => (
+    <div
+      key={idx}
+      className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 md:border-0 md:bg-transparent md:p-0"
+    >
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto] md:items-center">
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-600 md:hidden">
+            Name
+          </label>
+          <input
+            type="text"
+            placeholder="Name"
+            value={s.name}
+            onChange={(e) => updateStaff(idx, { name: e.target.value })}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+          />
+        </div>
 
-                  <div className="flex items-center justify-end gap-3">
-                    <label className="inline-flex items-center gap-1 text-xs text-slate-600">
-                      <input
-                        type="radio"
-                        name="defaultStaff"
-                        checked={s.isDefault}
-                        onChange={() =>
-                          setStaff((prev) =>
-                            prev.map((st, i) => ({
-                              ...st,
-                              isDefault: i === idx,
-                            }))
-                          )
-                        }
-                        className="h-4 w-4 border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
-                      />
-                      Standard
-                    </label>
-                    <label className="inline-flex items-center gap-2 text-xs text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={s.active}
-                        onChange={(e) =>
-                          updateStaff(idx, { active: e.target.checked })
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
-                      />
-                      Aktiv
-                    </label>
-                    {staff.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setStaff((prev) =>
-                            prev.filter((_, i) => i !== idx)
-                          )
-                        }
-                        className="text-xs text-slate-400 hover:text-rose-500"
-                      >
-                        Entfernen
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-600 md:hidden">
+            Google Kalender ID (optional)
+          </label>
+          <input
+            type="text"
+            placeholder="Google Kalender ID (optional)"
+            value={s.calendarId}
+            onChange={(e) => updateStaff(idx, { calendarId: e.target.value })}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#3B82F6]"
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-3 md:justify-end">
+          <label className="inline-flex items-center gap-1 text-xs text-slate-600">
+            <input
+              type="radio"
+              name="defaultStaff"
+              checked={s.isDefault}
+              onChange={() =>
+                setStaff((prev) =>
+                  prev.map((st, i) => ({ ...st, isDefault: i === idx }))
+                )
+              }
+              className="h-4 w-4 border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
+            />
+            Standard
+          </label>
+
+          <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+            <input
+              type="checkbox"
+              checked={s.active}
+              onChange={(e) => updateStaff(idx, { active: e.target.checked })}
+              className="h-4 w-4 rounded border-slate-300 text-[#3B82F6] focus:ring-[#3B82F6]"
+            />
+            Aktiv
+          </label>
+
+          {staff.length > 1 && (
+            <button
+              type="button"
+              onClick={() => setStaff((prev) => prev.filter((_, i) => i !== idx))}
+              className="text-xs text-slate-400 hover:text-rose-500"
+            >
+              Entfernen
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
           </section>
 
           {/* FAQs */}
@@ -763,7 +765,7 @@ export default function OnboardingPage() {
           </section>
 
           {/* Footer / Actions */}
-          <div className="sticky bottom-0 mt-4 bg-gradient-to-t from-[#F8FAFC] pt-4">
+          <div className="sticky bottom-0 mt-4 bg-gradient-to-t from-[#F8FAFC] pt-4 pb-4">
             {error && (
               <div className="mb-3 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {error}
@@ -775,22 +777,23 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => router.push("/dashboard")}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-              >
-                Später ausfüllen
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? "Speichern…" : "Onboarding abschließen"}
-              </button>
-            </div>
+<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+  <button
+    type="button"
+    onClick={() => router.push("/dashboard")}
+    className="w-full sm:w-auto rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+  >
+    Später ausfüllen
+  </button>
+
+  <button
+    type="submit"
+    disabled={loading}
+    className="w-full sm:w-auto inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-60"
+  >
+    {loading ? "Speichern…" : "Onboarding abschließen"}
+  </button>
+</div>
           </div>
         </form>
       </div>

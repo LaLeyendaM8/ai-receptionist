@@ -5,7 +5,7 @@ import { verifyTtsToken } from "@/lib/ttsToken";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+const DEFAULT_VOICE_ID = "zKHQdbB8oaQ7roNTiDTK";
 const MAX_TEXT_CHARS = 500;
 
 function clampText(t: unknown) {

@@ -86,89 +86,137 @@ export default async function HandoffsPage() {
           Offene Fälle, die manuell übernommen werden sollen.
         </p>
       </div>
+{/* Liste */}
+<section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+  <div className="mb-4 flex items-center gap-2">
+    <ClipboardList className="h-4 w-4 text-[#3B82F6]" />
+    <h2 className="text-sm font-medium text-[#1E293B]">Offene Handoffs</h2>
+  </div>
 
-      {/* Liste */}
-      <section className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <ClipboardList className="h-4 w-4 text-[#3B82F6]" />
-          <h2 className="text-sm font-medium text-[#1E293B]">
-            Offene Handoffs
-          </h2>
-        </div>
+  {/* DESKTOP TABLE */}
+  <div className="hidden md:block overflow-x-auto">
+    <table className="min-w-full text-left text-sm text-[#1E293B]">
+      <thead>
+        <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs text-[#64748B]">
+          <th className="px-4 py-3">Frage</th>
+          <th className="px-4 py-3">Intent</th>
+          <th className="px-4 py-3">Status</th>
+          <th className="px-4 py-3">Zeit</th>
+          <th className="px-4 py-3 text-right">Aktion</th>
+        </tr>
+      </thead>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm text-[#1E293B]">
-            <thead>
-              <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-xs text-[#64748B]">
-                <th className="px-4 py-3">Frage</th>
-                <th className="px-4 py-3">Intent</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Zeit</th>
-                <th className="px-4 py-3 text-right">Aktion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-6 text-center text-sm text-[#94A3B8]"
-                  >
-                    Keine offenen Handoffs 🎉
-                  </td>
-                </tr>
+      <tbody>
+        {rows.length === 0 && (
+          <tr>
+            <td colSpan={5} className="px-4 py-6 text-center text-sm text-[#94A3B8]">
+              Keine offenen Handoffs 🎉
+            </td>
+          </tr>
+        )}
+
+        {rows.map((h: any) => (
+          <tr
+            key={h.id}
+            className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC]"
+          >
+            <td className="px-4 py-3 align-top">
+              <div className="max-w-[520px] whitespace-pre-wrap text-sm text-[#1E293B]">
+                {h.question}
+              </div>
+              {h.source && (
+                <div className="mt-1 text-xs text-[#64748B]">Quelle: {h.source}</div>
               )}
+            </td>
 
-              {rows.map((h: any) => (
-                <tr
-                  key={h.id}
-                  className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC]"
+            <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
+              {h.intent ?? "unknown"}
+            </td>
+
+            <td className="px-4 py-3 align-top">
+              <span
+                className={
+                  "inline-flex rounded-full px-3 py-1 text-xs font-medium " +
+                  getStatusBadgeClasses(h.status)
+                }
+              >
+                {h.status ?? "open"}
+              </span>
+            </td>
+
+            <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
+              {formatDateTime(h.created_at)}
+            </td>
+
+            <td className="px-4 py-3 align-top text-right">
+              <form action={closeHandoffAction}>
+                <input type="hidden" name="id" value={h.id} />
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                  title="Abhaken"
                 >
-                  <td className="px-4 py-3 align-top">
-                    <div className="max-w-[520px] whitespace-pre-wrap text-sm text-[#1E293B]">
-                      {h.question}
-                    </div>
-                    {h.source && (
-                      <div className="mt-1 text-xs text-[#64748B]">
-                        Quelle: {h.source}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
-                    {h.intent ?? "unknown"}
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <span
-                      className={
-                        "inline-flex rounded-full px-3 py-1 text-xs font-medium " +
-                        getStatusBadgeClasses(h.status)
-                      }
-                    >
-                      {h.status ?? "open"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 align-top text-sm text-[#1E293B]">
-                    {formatDateTime(h.created_at)}
-                  </td>
-                  <td className="px-4 py-3 align-top text-right">
-                    <form action={closeHandoffAction}>
-                      <input type="hidden" name="id" value={h.id} />
-                      <button
-                        type="submit"
-                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-                        title="Abhaken"
-                      >
-                        <Check className="h-3 w-3" />
-                        Abhaken
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  <Check className="h-3 w-3" />
+                  Abhaken
+                </button>
+              </form>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  {/* MOBILE CARDS */}
+  <div className="mt-3 space-y-3 md:hidden">
+    {rows.length === 0 && (
+      <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-xs text-[#64748B]">
+        Keine offenen Handoffs 🎉
+      </div>
+    )}
+
+    {rows.map((h: any) => (
+      <div key={h.id} className="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-[#64748B]">
+              {h.intent ?? "unknown"} • {formatDateTime(h.created_at)}
+            </div>
+            <div className="mt-2 whitespace-pre-wrap text-sm text-[#1E293B]">
+              {h.question}
+            </div>
+            {h.source && (
+              <div className="mt-2 text-xs text-[#64748B]">Quelle: {h.source}</div>
+            )}
+          </div>
+
+          <span
+            className={
+              "inline-flex h-fit rounded-full px-3 py-1 text-xs font-medium " +
+              getStatusBadgeClasses(h.status)
+            }
+          >
+            {h.status ?? "open"}
+          </span>
         </div>
-      </section>
+
+        <div className="mt-3 flex justify-end">
+          <form action={closeHandoffAction}>
+            <input type="hidden" name="id" value={h.id} />
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+              title="Abhaken"
+            >
+              <Check className="h-3 w-3" />
+              Abhaken
+            </button>
+          </form>
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
     </div>
   );
 }

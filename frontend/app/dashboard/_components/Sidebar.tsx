@@ -29,7 +29,7 @@ export function Sidebar({ logoutAction }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-[260px] flex-col border-r border-[#E2E8F0] bg-white">
+    <aside className="flex h-full w-[260px] flex-col border-r border-[#E2E8F0] bg-white">
       {/* Logo-Bereich */}
       <div className="flex items-center gap-2 px-6 py-5">
         <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-[#3B82F6]/10">
