@@ -19,9 +19,9 @@ const sizeMap = {
 };
 
 const logoSrc: Record<Exclude<BrandVariant, "wordmark">, string> = {
-  icon: "public/branding/ReceptaAI-logo-icon.svg",
-  horizontal: "public/branding/ReceptaAI-logo-horizontal-de.svg",
-  full: "public/branding/ReceptaAI-logo-full-de.svg",
+  icon: "/branding/ReceptaAI-logo-icon.svg",
+  horizontal: "/branding/ReceptaAI-logo-horizontal-de.svg",
+  full: "/branding/ReceptaAI-logo-full-de.svg",
 };
 
 export function Brand({
