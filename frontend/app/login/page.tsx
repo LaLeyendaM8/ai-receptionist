@@ -4,6 +4,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { Brand } from "@/app/components/Brand"
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,10 +49,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-brand-background flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-md border border-brand-border p-6 sm:p-8 space-y-7">
         {/* Logo / Brand */}
-        <div className="flex items-center justify-center gap-3">
-          <div className="h-10 w-10 rounded-2xl bg-brand-primary/10 flex items-center justify-center">
-            <span className="text-brand-primary text-lg">📞</span>
-          </div>
+         <div className="flex items-center justify-center">
+           <Brand href="/" variant="horizontal" size="lg" />
+         </div>
           <div>
             <p className="text-sm text-gray-500">Willkommen zurück bei</p>
             <p className="text-lg font-semibold">ReceptaAI</p>
@@ -116,6 +116,6 @@ export default function LoginPage() {
           </a>
         </p>
       </div>
-    </div>
+    
   );
 }

@@ -3,7 +3,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Image from "next/image";
+import { Brand } from "@/app/components/Brand"
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 type ApiError =
@@ -35,12 +35,9 @@ export default function SignupForm() {
       <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white shadow-md p-6 sm:p-8 space-y-6">
           <div className="flex flex-col items-center gap-3 text-center">
-            <Image
-              src="/branding/ReceptaAI-logo-horizontal-de.svg"
-              alt="ReceptaAI"
-              width={180}
-              height={40}
-            />
+            <div className="flex items-center justify-center">
+  <Brand href="/" variant="horizontal" size="lg" />
+</div>
             <h1 className="text-xl font-semibold text-slate-900">
               Kein aktives ReceptaAI-Abo gefunden
             </h1>
@@ -167,12 +164,9 @@ export default function SignupForm() {
       <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white shadow-md p-6 sm:p-8 space-y-8">
         {/* Logo + Intro */}
         <div className="flex flex-col items-center gap-3 text-center">
-          <Image
-            src="/branding/ReceptaAI-logo-horizontal-de.svg"
-            alt="ReceptaAI"
-            width={180}
-            height={40}
-          />
+        <div className="flex items-center justify-center">
+  <Brand href="/" variant="horizontal" size="lg" />
+</div>
           <div>
             <h1 className="text-xl font-semibold text-slate-900">
               ReceptaAI Konto erstellen

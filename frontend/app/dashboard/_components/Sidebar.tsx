@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { Brand } from "@/app/components/Brand"
 import { usePathname } from "next/navigation";
 import {
   LayoutGrid,
@@ -33,12 +33,9 @@ export function Sidebar({ logoutAction }: SidebarProps) {
       {/* Logo-Bereich */}
       <div className="flex items-center gap-2 px-6 py-5">
         <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-[#3B82F6]/10">
-          <Image
-            src="/branding/ReceptaAI-logo-icon.svg"
-            alt="ReceptaAI Logo"
-            width={28}
-            height={28}
-          />
+          <div className="flex items-center justify-center">
+            <Brand href="/" variant="horizontal" size="lg" />
+          </div>
         </div>
         <span className="text-base font-semibold text-[#1E293B]">
           ReceptaAI
