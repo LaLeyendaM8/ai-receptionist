@@ -71,9 +71,9 @@ export default function HomePage() {
       {/* HEADER */}
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-         <a href="#hero" className="flex items-center gap-2">
-  <Brand href={undefined} variant="horizontal" size="md" priority />
-</a>
+
+  <Brand href="#hero" variant="horizontal" size="md" />
+
 
           <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
             <a href="#features" className="hover:text-slate-900">
