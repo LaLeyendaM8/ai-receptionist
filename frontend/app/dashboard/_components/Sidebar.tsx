@@ -37,9 +37,6 @@ export function Sidebar({ logoutAction }: SidebarProps) {
             <Brand href="/" variant="horizontal" size="lg" />
           </div>
         </div>
-        <span className="text-base font-semibold text-[#1E293B]">
-          ReceptaAI
-        </span>
       </div>
 
       {/* Navigation */}

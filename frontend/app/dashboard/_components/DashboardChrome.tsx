@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Sidebar } from "./Sidebar";
+import  {Brand} from "@/app/components/Brand"
 
 type Props = {
   children: React.ReactNode;
@@ -63,7 +64,9 @@ export function DashboardChrome({ children, logoutAction, hasActiveSub }: Props)
                 <Menu className="h-5 w-5" />
               </button>
 
-              <div className="text-sm font-semibold">ReceptaAI</div>
+              <div className="flex items-center justify-center">
+                         <Brand href="/" variant="horizontal" size="lg" />
+                       </div>
 
               {/* Spacer rechts (damit Logo zentriert bleibt) */}
               <div className="h-9 w-9" />

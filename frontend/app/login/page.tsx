@@ -49,6 +49,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-brand-background flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-md border border-brand-border p-6 sm:p-8 space-y-7">
         {/* Logo / Brand */}
+        <div className="flex items-center justify-center gap-3">
          <div className="flex items-center justify-center">
            <Brand href="/" variant="horizontal" size="lg" />
          </div>
@@ -116,6 +117,6 @@ export default function LoginPage() {
           </a>
         </p>
       </div>
-    
+    </div>
   );
 }
