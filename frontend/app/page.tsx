@@ -76,6 +76,9 @@ export default function HomePage() {
 
 
           <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
+            <a href="/demo" className="hover:text-slate-900">
+              Demo
+            </a>
             <a href="#features" className="hover:text-slate-900">
               Features
             </a>
