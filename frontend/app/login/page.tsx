@@ -53,10 +53,7 @@ export default function LoginPage() {
          <div className="flex items-center justify-center">
            <Brand href="/" variant="horizontal" size="lg" />
          </div>
-          <div>
-            <p className="text-sm text-gray-500">Willkommen zurück bei</p>
-            <p className="text-lg font-semibold">ReceptaAI</p>
-          </div>
+          
         </div>
 
         {/* Headline + Copy */}
