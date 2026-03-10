@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { Brand } from "@/app/components/Brand"
 import CopyNumber from "./_components/CopyNumber";
 
 export const dynamic = "force-static";
@@ -14,15 +14,9 @@ export default function DemoPage() {
       <div className="border-b border-[#E2E8F0] bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#3B82F6]/10">
-              <Image
-                src="/branding/ReceptaAI-logo-icon.svg"
-                alt="ReceptaAI"
-                width={26}
-                height={26}
-              />
+           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+                     <Brand href="#hero" variant="horizontal" size="lg" />
             </div>
-
             <div>
               <div className="text-sm font-semibold">ReceptaAI Demo</div>
               <div className="text-xs text-[#64748B]">
