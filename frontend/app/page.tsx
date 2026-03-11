@@ -39,33 +39,38 @@ const faqs: FaqItem[] = [
 ];
 
 export default function HomePage() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"faq_basic" | "starter" | null>(null);
 
-  async function startCheckout() {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-      });
+async function startCheckout(plan: "faq_basic" | "starter") {
+  try {
+    setLoading(plan);
 
-      if (!res.ok) {
-        console.error("checkout_failed", await res.json().catch(() => ({})));
-        return;
-      }
+    const res = await fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ plan }),
+    });
 
-      const data = await res.json();
-
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        console.error("no_checkout_url_returned", data);
-      }
-    } catch (error) {
-      console.error("checkout_error", error);
-    } finally {
-      setLoading(false);
+    if (!res.ok) {
+      console.error("checkout_failed", await res.json().catch(() => ({})));
+      return;
     }
+
+    const data = await res.json();
+
+    if (data?.url) {
+      window.location.href = data.url;
+    } else {
+      console.error("no_checkout_url_returned", data);
+    }
+  } catch (error) {
+    console.error("checkout_error", error);
+  } finally {
+    setLoading(null);
   }
+}
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -129,8 +134,8 @@ export default function HomePage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 <button
                   type="button"
-                  onClick={startCheckout}
-                  disabled={loading}
+            onClick={() => startCheckout("starter")}
+            disabled={loading !== null}
                   className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-blue-700 disabled:opacity-70 sm:w-auto"
                 >
                   {loading ? "Weiterleitung zu Stripe..." : "Jetzt starten"}
@@ -456,66 +461,136 @@ export default function HomePage() {
         </section>
 
         {/* PRICING */}
-        <section id="pricing" className="border-t border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-            <div className="text-center">
-              <p className="text-sm font-semibold text-blue-600">
-                Transparente Preise
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-900">
-                Ein klarer Einstieg für Salons und Studios
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Monatlich kündbar. Ideal für Beauty-Betriebe, die professionell
-                erreichbar sein wollen.
-              </p>
-            </div>
+<section id="pricing" className="border-t border-slate-200 bg-white">
+  <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+    <div className="text-center">
+      <p className="text-sm font-semibold text-blue-600">
+        Transparente Preise
+      </p>
+      <h2 className="mt-2 text-xl font-semibold text-slate-900">
+        Wähle den passenden Plan für deinen Salon oder dein Studio
+      </h2>
+      <p className="mt-2 text-sm text-slate-600">
+        Monatlich kündbar. Klare Preise für Beauty-Betriebe mit echten
+        Telefonanfragen im Alltag.
+      </p>
+    </div>
 
-            <div className="mt-10 flex justify-center">
-              <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 shadow-md md:p-10">
-                <p className="text-sm font-semibold text-blue-600">Starter</p>
+    <div className="mt-10 grid gap-6 lg:grid-cols-2">
+      {/* FAQ BASIC */}
+      <div className="flex flex-col rounded-3xl border border-slate-200 bg-white p-8 shadow-md md:p-10">
+        <div>
+          <p className="text-sm font-semibold text-blue-600">FAQ Basic</p>
 
-                <div className="mt-4 flex items-baseline gap-2">
-                  <p className="text-4xl font-semibold tracking-tight text-slate-900">
-                    99&nbsp;€
-                  </p>
-                  <span className="text-sm text-slate-500">/ Monat</span>
-                </div>
-
-                <p className="mt-2 text-sm text-slate-600">
-                  Für kleine bis mittlere Beauty-Betriebe mit einem zentralen
-                  Telefon und wiederkehrenden Kundenanfragen.
-                </p>
-
-                <ul className="mt-6 space-y-2 text-sm text-slate-700">
-                  <li>• 1 Telefonnummer / Hauptleitung</li>
-                  <li>• Automatische Anrufannahme</li>
-                  <li>• Terminbuchung in den Kalender</li>
-                  <li>• Beantwortung von Standardfragen</li>
-                  <li>• Weiterleitung bei Bedarf</li>
-                  <li>• Gesprächsübersicht & HandOffs</li>
-                  <li>• DSGVO-konformes Setup</li>
-                </ul>
-
-                <button
-                  type="button"
-                  onClick={startCheckout}
-                  disabled={loading}
-                  className="mt-8 inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-blue-700 disabled:opacity-70"
-                >
-                  {loading
-                    ? "Weiterleitung zu Stripe..."
-                    : "Jetzt Starter-Abo buchen"}
-                </button>
-
-                <p className="mt-3 text-center text-xs text-slate-500">
-                  Du wirst zu Stripe weitergeleitet, um dein ReceptaAI-Abo
-                  sicher abzuschließen.
-                </p>
-              </div>
-            </div>
+          <div className="mt-4 flex items-baseline gap-2">
+            <p className="text-4xl font-semibold tracking-tight text-slate-900">
+              79&nbsp;€
+            </p>
+            <span className="text-sm text-slate-500">/ Monat</span>
           </div>
-        </section>
+
+          <p className="mt-2 text-sm text-slate-600">
+            Für kleine Studios, die Anrufe professionell annehmen und häufige
+            Fragen automatisch beantworten lassen wollen.
+          </p>
+
+          <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <span className="font-semibold text-slate-900">49 € Setup</span>
+            <span className="mx-2 text-slate-300">•</span>
+            <span>150 Gesprächsminuten inklusive</span>
+            <span className="mx-2 text-slate-300">•</span>
+            <span>danach 0,20 € / Minute</span>
+          </div>
+
+          <ul className="mt-6 space-y-2 text-sm text-slate-700">
+            <li>• 1 Telefonnummer / Hauptleitung</li>
+            <li>• Automatische Anrufannahme</li>
+            <li>• Antworten auf Öffnungszeiten, Preise & Standardfragen</li>
+            <li>• Weiterleitung bei Bedarf</li>
+            <li>• Gesprächsübersicht & HandOffs</li>
+            <li>• DSGVO-konformes Setup</li>
+          </ul>
+        </div>
+
+        <div className="mt-8">
+          <button
+            type="button"
+            onClick={() => startCheckout("faq_basic")}
+            disabled={loading !== null}
+            className="inline-flex w-full items-center justify-center rounded-full border border-blue-200 bg-white px-6 py-3 text-sm font-semibold text-blue-700 shadow-sm hover:border-blue-500 hover:bg-blue-50 disabled:opacity-70"
+          >
+            {loading === "faq_basic"
+              ? "Weiterleitung zu Stripe..."
+              : "FAQ Basic buchen"}
+          </button>
+
+          <p className="mt-3 text-center text-xs text-slate-500">
+            Ideal, wenn du zuerst Anrufannahme und FAQ-Automatisierung willst.
+          </p>
+        </div>
+      </div>
+
+      {/* STARTER */}
+      <div className="relative flex flex-col rounded-3xl border border-blue-200 bg-white p-8 shadow-lg md:p-10">
+        <div className="absolute right-6 top-6 rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
+          Beliebtester Plan
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold text-blue-600">Starter</p>
+
+          <div className="mt-4 flex items-baseline gap-2">
+            <p className="text-4xl font-semibold tracking-tight text-slate-900">
+              149&nbsp;€
+            </p>
+            <span className="text-sm text-slate-500">/ Monat</span>
+          </div>
+
+          <p className="mt-2 text-sm text-slate-600">
+            Der vollständige KI-Telefonassistent für Beauty-Betriebe mit
+            Terminbuchung und automatisierter Kundenannahme.
+          </p>
+
+          <div className="mt-4 rounded-2xl bg-blue-50 px-4 py-3 text-sm text-slate-700">
+            <span className="font-semibold text-slate-900">99 € Setup</span>
+            <span className="mx-2 text-slate-300">•</span>
+            <span>300 Gesprächsminuten inklusive</span>
+            <span className="mx-2 text-slate-300">•</span>
+            <span>danach 0,20 € / Minute</span>
+          </div>
+
+          <ul className="mt-6 space-y-2 text-sm text-slate-700">
+            <li>• 1 Telefonnummer / Hauptleitung</li>
+            <li>• Automatische Anrufannahme</li>
+            <li>• Terminbuchung in den Kalender</li>
+            <li>• Antworten auf Öffnungszeiten, Preise & Standardfragen</li>
+            <li>• Weiterleitung bei Bedarf</li>
+            <li>• Gesprächsübersicht & HandOffs</li>
+            <li>• DSGVO-konformes Setup</li>
+          </ul>
+        </div>
+
+        <div className="mt-8">
+          <button
+            type="button"
+            onClick={() => startCheckout("starter")}
+            disabled={loading !== null}
+            className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-blue-700 disabled:opacity-70"
+          >
+            {loading === "starter"
+              ? "Weiterleitung zu Stripe..."
+              : "Starter buchen"}
+          </button>
+
+          <p className="mt-3 text-center text-xs text-slate-500">
+            Für Salons und Studios, die Termine direkt telefonisch buchen lassen
+            wollen.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
         {/* FAQ */}
         <section id="faq" className="bg-slate-50">
@@ -569,8 +644,8 @@ export default function HomePage() {
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
               <button
                 type="button"
-                onClick={startCheckout}
-                disabled={loading}
+            onClick={() => startCheckout("starter")}
+            disabled={loading !== null}
                 className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-blue-700 shadow-md hover:bg-slate-100 disabled:opacity-70"
               >
                 {loading ? "Weiterleitung zu Stripe..." : "Jetzt starten"}
