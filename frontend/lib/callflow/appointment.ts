@@ -11,6 +11,7 @@ import {
   clearConversationState,
   type AppointmentCS,
 } from "@/lib/callflow/conversation-state";
+import { notifyNewAppointment } from "@/lib/notify/notifyNewAppointment";
 import { DateTime } from "luxon";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
@@ -1122,6 +1123,50 @@ if (intent === "availability" || intent === "staff_availability") {
       }
 
       await supabase.from("appointment_drafts").delete().eq("id", draft.id);
+
+           await supabase.from("appointment_drafts").delete().eq("id", draft.id);
+
+      // Bestätigungsmail an Unternehmen (best effort)
+      try {
+        const { data: clientRow } = await supabase
+          .from("clients")
+          .select("notification_email")
+          .eq("id", clientId)
+          .maybeSingle();
+
+        if (clientRow?.notification_email) {
+          const localStart = DateTime.fromISO(appointment.start_at, { zone: "utc" })
+            .setZone(timezone)
+            .setLocale("de");
+
+          const date = localStart.toFormat("dd.LL.yyyy");
+          const time = localStart.toFormat("HH:mm");
+
+          let staffLabel: string | null = null;
+
+          if (appointment.staff_id) {
+            const { data: staffRow } = await supabase
+              .from("staff")
+              .select("name")
+              .eq("id", appointment.staff_id)
+              .maybeSingle();
+
+            staffLabel = staffRow?.name ?? null;
+          }
+
+          await notifyNewAppointment({
+            to: clientRow.notification_email,
+            service: appointment.title ?? "Termin",
+            date,
+            time,
+            customerName: appointment.customer_name ?? null,
+            phone: appointment.customer_phone ?? null,
+            staff: staffLabel,
+          });
+        }
+      } catch (mailErr) {
+        console.error("[APPOINTMENT CONFIRM] notifyNewAppointment failed:", mailErr);
+      }
 
       if (conv) {
         try {

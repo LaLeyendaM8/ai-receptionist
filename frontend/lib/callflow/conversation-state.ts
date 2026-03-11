@@ -1,4 +1,3 @@
-// lib/ai/conversation-state.ts
 import { SupabaseClient } from "@supabase/supabase-js";
 
 export type AppointmentCS = {
@@ -14,16 +13,31 @@ export type AppointmentCS = {
   phone?: string | null;
 };
 
+export type HandoffCS = {
+  mode?: "escalation" | null;
+  source?: "faq" | "human_handoff" | "fallback" | null;
+  choice?: "transfer" | "message" | null;
+  stage?:
+    | "awaiting_choice"
+    | "awaiting_message"
+    | "awaiting_name"
+    | "awaiting_phone"
+    | "awaiting_phone_confirm"
+    | null;
+  question?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+};
+
 export type ConversationStateJson = {
   lastIntent?: string;
   step?: string;
   appointment?: AppointmentCS;
+  handoff?: HandoffCS;
 
-  // ✅ Counters (CSH)
-  noSpeechCount?: number;      // Twilio hat nichts erkannt
-  noUnderstandCount?: number;  // GPT war unsicher / "nicht verstanden"
-
-  // future: faq, handoffs, ...
+  // Counters
+  noSpeechCount?: number;
+  noUnderstandCount?: number;
 };
 
 export type ConversationState = {
@@ -38,7 +52,7 @@ type EnsureArgs = {
   supabase: SupabaseClient;
   clientId: string;
   sessionId: string;
-  channel?: string; // default: "phone"
+  channel?: string;
 };
 
 export async function ensureConversationState({
@@ -91,9 +105,6 @@ export async function ensureConversationState({
   } as ConversationState;
 }
 
-// ---------------------
-// ✅ Deep merge helpers
-// ---------------------
 function isObject(v: any) {
   return v && typeof v === "object" && !Array.isArray(v);
 }
@@ -116,13 +127,11 @@ type PatchArgs = {
   patch: Partial<ConversationStateJson>;
 };
 
-// ✅ patch = merge statt overwrite
 export async function patchConversationState({
   supabase,
   id,
   patch,
 }: PatchArgs): Promise<void> {
-  // 1) existing state laden
   const { data: row, error: rErr } = await supabase
     .from("conversation_state")
     .select("state")
@@ -137,7 +146,6 @@ export async function patchConversationState({
   const current = (row?.state ?? {}) as ConversationStateJson;
   const merged = deepMerge(current, patch);
 
-  // 2) update merged
   const { error } = await supabase
     .from("conversation_state")
     .update({
@@ -178,16 +186,12 @@ export async function clearConversationState({
   }
 }
 
-// ---------------------
-// ✅ Counter helpers
-// ---------------------
 type CounterKey = "noSpeechCount" | "noUnderstandCount";
 
 export async function incrementCounter(args: {
   supabase: SupabaseClient;
   conv: ConversationState;
   key: CounterKey;
-  max?: number;
 }): Promise<number> {
   const { supabase, conv, key } = args;
   const current = Number((conv.state as any)?.[key] ?? 0);

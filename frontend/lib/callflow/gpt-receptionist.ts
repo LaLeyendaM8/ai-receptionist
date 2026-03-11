@@ -1,14 +1,18 @@
-// lib/callflow/gptReceptionist.ts
 import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ensureConversationState, incrementCounter } from "@/lib/callflow/conversation-state";
+import {
+  ensureConversationState,
+  incrementCounter,
+  patchConversationState,
+  type HandoffCS,
+} from "@/lib/callflow/conversation-state";
 import { runAppointmentFlow } from "@/lib/callflow/appointment";
 import { runFaqFlow } from "@/lib/callflow/faq";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 export type ReceptionistInput = {
-  supabase: SupabaseClient; // ✅ von call/handle reinreichen (createServiceClient nur 1x)
+  supabase: SupabaseClient;
   text: string;
   fromNumber?: string | null;
   toNumber?: string | null;
@@ -26,8 +30,8 @@ type BrainResponse = {
     | "staff_availability"
     | "appointment_confirm"
     | "faq"
+    | "human_handoff"
     | "other"
-    // legacy aliases
     | "appointment"
     | "appointment_booking"
     | "route_appointment";
@@ -50,7 +54,6 @@ export type ReceptionistResult =
         meta?: any;
       };
 
-      // downstream passthrough (appointment/faq)
       status?: string;
       message?: string;
       question?: string;
@@ -59,7 +62,6 @@ export type ReceptionistResult =
       staff?: string | null;
       date?: string | null;
 
-      // appointment extras
       appointment?: any;
       appointmentId?: string;
       preview?: string;
@@ -68,7 +70,6 @@ export type ReceptionistResult =
       calendarSynced?: boolean;
       calendarError?: string | null;
 
-      // faq extras
       answer?: string;
       handoffId?: string;
     }
@@ -112,7 +113,7 @@ function hardEndFromText(text: string) {
     "das war's",
     "das wars",
     "das war alles",
-    ];
+  ];
 
   return phrases.some((p) => t.includes(p));
 }
@@ -129,7 +130,7 @@ WICHTIG: Du gibst IMMER NUR ein gültiges JSON zurück (ohne Markdown, ohne Text
 
 Schema (genau so):
 {
-  "intent": "create_appointment" | "cancel_appointment" | "reschedule_appointment" | "appointment_info" | "availability" | "staff_availability" | "appointment_confirm" | "faq" | "other",
+  "intent": "create_appointment" | "cancel_appointment" | "reschedule_appointment" | "appointment_info" | "availability" | "staff_availability" | "appointment_confirm" | "faq" | "human_handoff" | "other",
   "reply": string | null,
   "confidence": number,
   "end_call": boolean,
@@ -140,11 +141,12 @@ Regeln:
 - Wenn der Nutzer eine Frage zu Öffnungszeiten/Preisen/Adresse/Services/sonstigen Infos stellt → intent="faq" und reply=null.
 - Wenn der Nutzer einen Termin buchen/ändern/stornieren will → passende Appointment-Intents, reply=null.
 - Wenn der Nutzer eindeutig bestätigt ("ja", "bitte buchen", "bestätige", "mach das") und es klingt nach Termin bestätigen → intent="appointment_confirm", reply=null.
+- Wenn der Nutzer mit einem Mitarbeiter sprechen möchte, weitergeleitet werden möchte oder eine echte Person verlangt → intent="human_handoff", reply=null.
 - Wenn du nicht sicher bist → intent="other", reply="freundliche Rückfrage", confidence niedrig.
 - confidence zwischen 0 und 1.
-- Wenn der Nutzer nach abgeschlossenem intent klar sagt "das war´s", "tschüss", "danke", etc, -> end_call: true + reply = kurze Verabschiedung
-- Wenn intent other und confidence niedrig -> Rückfrage + end_call: false
-- meta optional: nutze meta nur für interne Hinweise (z.B. { "parsed": {...} }), ansonsten null.
+- Wenn der Nutzer nach abgeschlossenem intent klar sagt "das war´s", "tschüss", "danke", etc. → end_call: true + reply = kurze Verabschiedung
+- Wenn intent other und confidence niedrig → Rückfrage + end_call: false
+- meta optional: nutze meta nur für interne Hinweise, ansonsten null.
 `.trim();
 }
 
@@ -160,23 +162,29 @@ export async function runGptReceptionistFlow(
   input: ReceptionistInput
 ): Promise<ReceptionistResult> {
   try {
-    const { supabase, text, clientId: clientIdFromInput, sessionId } = input;
+    const {
+      supabase,
+      text,
+      fromNumber,
+      clientId: clientIdFromInput,
+      sessionId,
+    } = input;
 
     if (!text || typeof text !== "string") {
       return { success: false, error: "missing_text" };
     }
 
-    // 1) Client + Profile + Settings laden
     let profileText = "";
     let resolvedClientId: string | null = null;
     let ownerUserId: string | null = null;
-    let timezone: string = "Europe/Berlin";
-    let staffEnabled: boolean = true;
+    let timezone = "Europe/Berlin";
+    let staffEnabled = true;
+    let activePlan: "faq_basic" | "starter" = "starter";
 
     if (clientIdFromInput) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, ai_profile, owner_user , timezone, staff_enabled")
+        .select("id, ai_profile, owner_user, timezone, staff_enabled")
         .eq("id", clientIdFromInput)
         .maybeSingle<ClientSettings>();
 
@@ -188,10 +196,9 @@ export async function runGptReceptionistFlow(
       timezone = data?.timezone ?? "Europe/Berlin";
       staffEnabled = Boolean(data?.staff_enabled ?? true);
     } else {
-      // Debug/Admin-Fallback: neuester Client mit Profil
       const { data, error } = await supabase
         .from("clients")
-        .select("id, ai_profile, owner_user , timezone, staff_enabled")
+        .select("id, ai_profile, owner_user, timezone, staff_enabled")
         .not("ai_profile", "is", null)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -205,8 +212,24 @@ export async function runGptReceptionistFlow(
       timezone = data?.timezone ?? "Europe/Berlin";
       staffEnabled = Boolean(data?.staff_enabled ?? true);
     }
+    // Aktiven Plan laden (MVP: letzter aktiver/trialing Subscription-Eintrag)
+    if (resolvedClientId) {
+      const { data: subRow, error: subErr } = await supabase
+        .from("stripe_subscriptions")
+        .select("plan, status")
+        .eq("client_id", resolvedClientId)
+        .in("status", ["active", "trialing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    // 1b) Harte Ende-Regel
+      if (subErr) {
+        console.error("[BRAIN] subscription load error", subErr);
+      }
+
+      const rawPlan = String(subRow?.plan ?? "starter").toLowerCase();
+      activePlan = rawPlan === "faq_basic" ? "faq_basic" : "starter";
+    }
     if (hardEndFromText(text)) {
       return {
         success: true,
@@ -217,7 +240,47 @@ export async function runGptReceptionistFlow(
       };
     }
 
-    // 2) Brain LLM Call
+    let conv: any = null;
+    let handoffState: HandoffCS = {};
+
+    if (resolvedClientId && sessionId) {
+      try {
+        conv = await ensureConversationState({
+          supabase,
+          clientId: resolvedClientId,
+          sessionId,
+          channel: "phone",
+        });
+
+        handoffState = ((conv.state as any)?.handoff ?? {}) as HandoffCS;
+      } catch (err) {
+        console.warn("[BRAIN] ensureConversationState failed", err);
+      }
+    }
+
+    // Aktiver Handoff-Dialog → direkt in FAQ/Handoff-Flow
+    if (resolvedClientId && handoffState?.stage) {
+      const out: any = await runFaqFlow({
+        supabase,
+        clientId: resolvedClientId,
+        message: text,
+        sessionId: sessionId ?? null,
+        userId: null,
+        fromNumber: fromNumber ?? null,
+      });
+
+      const reply = out?.answer ?? out?.message ?? "Okay.";
+
+      return {
+        success: true,
+        intent: "human_handoff",
+        confidence: 1,
+        end_call: false,
+        reply,
+        ...out,
+      };
+    }
+
     const system = buildSystemPrompt(profileText);
 
     const resp = await openai.chat.completions.create({
@@ -247,17 +310,10 @@ export async function runGptReceptionistFlow(
     const confidence = clamp01(brain.confidence, 0.5);
     const endCallFromBrain = Boolean(brain.end_call);
 
-    // 3) Low-confidence other → Rückfrage + Counter
+    // Low-confidence other → Rückfrage + Counter
     if (intent === "other" && confidence < 0.35) {
-      if (resolvedClientId && sessionId) {
+      if (conv && resolvedClientId && sessionId) {
         try {
-          const conv = await ensureConversationState({
-            supabase,
-            clientId: resolvedClientId,
-            sessionId,
-            channel: "phone",
-          });
-
           const count = await incrementCounter({
             supabase,
             conv,
@@ -265,13 +321,29 @@ export async function runGptReceptionistFlow(
           });
 
           if (count >= 3) {
+            await patchConversationState({
+              supabase,
+              id: conv.id,
+              patch: {
+                handoff: {
+                  mode: "escalation",
+                  source: "fallback",
+                  choice: null,
+                  stage: "awaiting_choice",
+                  question: null,
+                  customerName: null,
+                  customerPhone: fromNumber ?? null,
+                },
+              },
+            });
+
             return {
               success: true,
-              intent: "other",
+              intent: "human_handoff",
               confidence,
-              end_call: true,
+              end_call: false,
               reply:
-                "Entschuldigung – ich verstehe Sie gerade leider nicht. Ich verbinde Sie kurz mit einem Mitarbeiter. Auf Wiederhören.",
+                "Entschuldigung, ich verstehe Sie gerade leider nicht. Möchten Sie direkt mit einem Mitarbeiter sprechen oder soll ich eine Nachricht hinterlassen, damit sich das Unternehmen bei Ihnen meldet?",
               brain: { raw: brain, meta: brain.meta },
             };
           }
@@ -300,7 +372,6 @@ export async function runGptReceptionistFlow(
       "availability",
       "staff_availability",
       "appointment_confirm",
-      // legacy
       "appointment",
       "appointment_booking",
       "route_appointment",
@@ -317,12 +388,33 @@ export async function runGptReceptionistFlow(
       brain: { raw: brain, meta: brain.meta },
     };
 
-    // Ohne Client → nur brain reply
     if (!resolvedClientId) return baseResult;
 
-    // Appointment/Confirm braucht ownerUserId für Google Calendar
-    // Falls bei manchen Clients null: graceful fallback (kein Calendar Sync)
     const safeOwnerUserId = ownerUserId ?? "";
+
+    if (intent === "human_handoff") {
+      const out: any = await runFaqFlow({
+        supabase,
+        clientId: resolvedClientId,
+        message: text,
+        sessionId: sessionId ?? null,
+        userId: null,
+        fromNumber: fromNumber ?? null,
+        forceHandoff: true,
+      });
+
+      const reply = out?.answer ?? out?.message ?? "Okay.";
+
+      return {
+        ...baseResult,
+        ...out,
+        reply,
+        end_call:
+          typeof out?.end_call === "boolean"
+            ? Boolean(out.end_call)
+            : baseResult.end_call,
+      };
+    }
 
     if (appointmentIntents.has(intent)) {
       const normalizedIntent =
@@ -331,6 +423,35 @@ export async function runGptReceptionistFlow(
         intent === "route_appointment"
           ? "create_appointment"
           : intent;
+
+      // FAQ Basic darf keine Terminaktionen ausführen -> direkt in Eskalation
+      if (activePlan === "faq_basic") {
+        const out: any = await runFaqFlow({
+          supabase,
+          clientId: resolvedClientId,
+          message: text,
+          sessionId: sessionId ?? null,
+          userId: null,
+          fromNumber: fromNumber ?? null,
+          forceHandoff: true,
+        });
+
+        const reply =
+          out?.answer ??
+          out?.message ??
+          "Für Terminbuchungen verbinde ich Sie gerne mit dem Unternehmen oder nehme eine Nachricht auf.";
+
+        return {
+          ...baseResult,
+          ...out,
+          intent: "human_handoff",
+          reply,
+          end_call:
+            typeof out?.end_call === "boolean"
+              ? Boolean(out.end_call)
+              : baseResult.end_call,
+        };
+      }
 
       const out: any = await runAppointmentFlow({
         supabase,
@@ -355,7 +476,9 @@ export async function runGptReceptionistFlow(
         intent: normalizedIntent,
         reply,
         end_call:
-          typeof out?.end_call === "boolean" ? Boolean(out.end_call) : baseResult.end_call,
+          typeof out?.end_call === "boolean"
+            ? Boolean(out.end_call)
+            : baseResult.end_call,
       };
     }
 
@@ -364,11 +487,11 @@ export async function runGptReceptionistFlow(
         supabase,
         clientId: resolvedClientId,
         message: text,
-        sessionId: sessionId ?? null, // ✅ Type ist jetzt vorhanden
+        sessionId: sessionId ?? null,
         userId: null,
+        fromNumber: fromNumber ?? null,
       });
 
-      // FAQ → optional direkt weiter in appointment flow
       if (out?.status === "route_appointment") {
         const ap: any = await runAppointmentFlow({
           supabase,
@@ -381,7 +504,8 @@ export async function runGptReceptionistFlow(
           brainIntent: "create_appointment",
         });
 
-        let apReply = "Gern. Für welches Datum möchten Sie den Termin? Sagen Sie zum Beispiel: ‚08.02.2026‘.";
+        let apReply =
+          "Gern. Für welches Datum möchten Sie den Termin? Sagen Sie zum Beispiel: „08.02.2026“.";
         if (ap?.status === "need_info" && ap?.question) apReply = ap.question;
         else if (ap?.message) apReply = ap.message;
         else if (ap?.phrase) apReply = ap.phrase;
@@ -392,7 +516,9 @@ export async function runGptReceptionistFlow(
           intent: "create_appointment",
           reply: apReply,
           end_call:
-            typeof ap?.end_call === "boolean" ? Boolean(ap.end_call) : baseResult.end_call,
+            typeof ap?.end_call === "boolean"
+              ? Boolean(ap.end_call)
+              : baseResult.end_call,
         };
       }
 
@@ -403,7 +529,9 @@ export async function runGptReceptionistFlow(
         ...out,
         reply,
         end_call:
-          typeof out?.end_call === "boolean" ? Boolean(out.end_call) : baseResult.end_call,
+          typeof out?.end_call === "boolean"
+            ? Boolean(out.end_call)
+            : baseResult.end_call,
       };
     }
 
