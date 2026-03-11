@@ -1,7 +1,7 @@
 // lib/callflow/gptReceptionist.ts
 import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ensureConversationState, incrementCounter } from "@/lib/conversation-state";
+import { ensureConversationState, incrementCounter } from "@/lib/callflow/conversation-state";
 import { runAppointmentFlow } from "@/lib/callflow/appointment";
 import { runFaqFlow } from "@/lib/callflow/faq";
 

@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { validateRequest } from "twilio";
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { createServiceClient } from "@/lib/supabaseClients";
-import { reportCallUsage } from "@/lib/stripeUsage";
+import { reportCallUsage } from "@/lib/stripe/stripeUsage";
 
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN as string;
 

@@ -1,6 +1,6 @@
 // app/api/speak/route.ts
 import { NextResponse } from "next/server";
-import { verifyTtsToken } from "@/lib/ttsToken";
+import { verifyTtsToken } from "@/lib/callflow/ttsToken";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

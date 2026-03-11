@@ -3,14 +3,14 @@ import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appointmentPrompt } from "@/ai/prompts/appointment";
 import { getServiceByMessage } from "@/ai/logic/services";
-import { getOAuth2ForUser } from "@/lib/googleServer";
+import { getOAuth2ForUser } from "@/lib/google/googleServer";
 import { google } from "googleapis";
 import {
   ensureConversationState,
   patchConversationState,
   clearConversationState,
   type AppointmentCS,
-} from "@/lib/conversation-state";
+} from "@/lib/callflow/conversation-state";
 import { DateTime } from "luxon";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });

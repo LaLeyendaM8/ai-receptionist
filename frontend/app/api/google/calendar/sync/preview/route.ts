@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { getOAuth2ForUser } from "@/lib/googleServer";
+import { getOAuth2ForUser } from "@/lib/google/googleServer";
 import { getCurrentUserId } from "@/lib/authServer";
 import { createClients } from "@/lib/supabaseClients";
 

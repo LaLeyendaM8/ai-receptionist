@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { faqPrompt } from "@/ai/prompts/faq";
 import { buildFaqContext } from "@/ai/logic/faqContext";
-import { notifyHandoff } from "@/lib/notifyHandoff";
+import { notifyHandoff } from "@/lib/notify/notifyHandoff";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 

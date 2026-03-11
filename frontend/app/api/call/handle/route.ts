@@ -3,14 +3,14 @@ export const dynamic = "force-dynamic";
 
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { NextResponse } from "next/server";
-import { createTtsToken } from "@/lib/ttsToken"
+import { createTtsToken } from "@/lib/callflow/ttsToken"
 import { twiml as TwiML, validateRequest } from "twilio";
 import { createServiceClient } from "@/lib/supabaseClients";
 import {
   ensureConversationState,
   incrementCounter,
   resetCounters,
-} from "@/lib/conversation-state";
+} from "@/lib/callflow/conversation-state";
 import { runGptReceptionistFlow } from "@/lib/callflow/gpt-receptionist";
 
 // ---------------------------------------------------------------------------

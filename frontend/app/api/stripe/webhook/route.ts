@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { stripe } from "@/lib/stripe/stripe";
 import { createServiceClient } from "@/lib/supabaseClients";
 
 export const runtime = "nodejs";
