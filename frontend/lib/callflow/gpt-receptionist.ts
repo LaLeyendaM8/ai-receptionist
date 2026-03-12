@@ -179,7 +179,7 @@ export async function runGptReceptionistFlow(
     let ownerUserId: string | null = null;
     let timezone = "Europe/Berlin";
     let staffEnabled = true;
-    let activePlan: "faq_basic" | "starter" = "starter";
+    let activePlan: "faq_basic" | "starter" | "none" = "none";
 
     if (clientIdFromInput) {
       const { data, error } = await supabase
@@ -212,7 +212,7 @@ export async function runGptReceptionistFlow(
       timezone = data?.timezone ?? "Europe/Berlin";
       staffEnabled = Boolean(data?.staff_enabled ?? true);
     }
-    // Aktiven Plan laden (MVP: letzter aktiver/trialing Subscription-Eintrag)
+        // Aktiven Plan laden (nur aktive/trialing Subscriptions zählen)
     if (resolvedClientId) {
       const { data: subRow, error: subErr } = await supabase
         .from("stripe_subscriptions")
@@ -227,8 +227,11 @@ export async function runGptReceptionistFlow(
         console.error("[BRAIN] subscription load error", subErr);
       }
 
-      const rawPlan = String(subRow?.plan ?? "starter").toLowerCase();
-      activePlan = rawPlan === "faq_basic" ? "faq_basic" : "starter";
+      const rawPlan = String(subRow?.plan ?? "").toLowerCase();
+
+      if (rawPlan === "faq_basic") activePlan = "faq_basic";
+      else if (rawPlan === "starter") activePlan = "starter";
+      else activePlan = "none";
     }
     if (hardEndFromText(text)) {
       return {
@@ -388,6 +391,17 @@ export async function runGptReceptionistFlow(
       brain: { raw: brain, meta: brain.meta },
     };
 
+        // Kein aktiver Plan -> Nutzung sauber blockieren
+    if (activePlan === "none") {
+      return {
+        ...baseResult,
+        intent: "other",
+        end_call: false,
+        reply:
+          "Für diesen Anschluss ist aktuell noch kein aktiver Plan hinterlegt. Bitte wenden Sie sich direkt an das Unternehmen.",
+      };
+    }
+    
     if (!resolvedClientId) return baseResult;
 
     const safeOwnerUserId = ownerUserId ?? "";
@@ -492,7 +506,35 @@ export async function runGptReceptionistFlow(
         fromNumber: fromNumber ?? null,
       });
 
-      if (out?.status === "route_appointment") {
+            if (out?.status === "route_appointment") {
+        if (activePlan === "faq_basic") {
+          const handoffOut: any = await runFaqFlow({
+            supabase,
+            clientId: resolvedClientId,
+            message: text,
+            sessionId: sessionId ?? null,
+            userId: null,
+            fromNumber: fromNumber ?? null,
+            forceHandoff: true,
+          });
+
+          const handoffReply =
+            handoffOut?.answer ??
+            handoffOut?.message ??
+            "Für Terminbuchungen verbinde ich Sie gerne mit dem Unternehmen oder nehme eine Nachricht auf.";
+
+          return {
+            ...baseResult,
+            ...handoffOut,
+            intent: "human_handoff",
+            reply: handoffReply,
+            end_call:
+              typeof handoffOut?.end_call === "boolean"
+                ? Boolean(handoffOut.end_call)
+                : baseResult.end_call,
+          };
+        }
+
         const ap: any = await runAppointmentFlow({
           supabase,
           clientId: resolvedClientId,

@@ -16,7 +16,7 @@ import { DateTime } from "luxon";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-// ---------- helpers (1:1 aus deiner Route) ----------
+// ---------- helpers ----------
 function toZoned(date: Date, tz: string) {
   return DateTime.fromJSDate(date, { zone: tz });
 }
@@ -116,6 +116,44 @@ async function prefetchOverlaps(
   return key;
 }
 
+function countOverlapsInIntervals(
+  existing: ApptInterval[],
+  startISO: string,
+  endISO: string
+) {
+  const cStart = new Date(startISO);
+  const cEnd = new Date(endISO);
+
+  return existing.reduce((count, a) => {
+    const overlaps = intervalsOverlap(
+      cStart,
+      cEnd,
+      new Date(a.start_at),
+      new Date(a.end_at)
+    );
+    return overlaps ? count + 1 : count;
+  }, 0);
+}
+
+async function getParallelCapacity(
+  supabase: SupabaseClient,
+  clientId: string
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("clients")
+    .select("parallel_capacity")
+    .eq("id", clientId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[APPOINTMENT] getParallelCapacity error", error);
+    return 1;
+  }
+
+  const raw = Number((data as any)?.parallel_capacity ?? 1);
+  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+}
+
 async function findNextFreeSlots(
   supabase: SupabaseClient,
   overlapCache: Map<string, ApptInterval[]>,
@@ -126,7 +164,8 @@ async function findNextFreeSlots(
   tz: string,
   maxSuggestions = 3,
   windowStartMin?: number,
-  windowEndMin?: number
+  windowEndMin?: number,
+  capacity = 1
 ) {
   const suggestions: string[] = [];
   const dayStartTZ = toZoned(day, tz).startOf("day");
@@ -188,14 +227,9 @@ async function findNextFreeSlots(
       .toUTC()
       .toISO({ suppressMilliseconds: true })!;
 
-    const cStart = new Date(cStartISO);
-    const cEnd = new Date(cEndISO);
+    const overlapCount = countOverlapsInIntervals(existing, cStartISO, cEndISO);
 
-    const hasOverlap = existing.some((a) =>
-      intervalsOverlap(cStart, cEnd, new Date(a.start_at), new Date(a.end_at))
-    );
-
-    if (!hasOverlap) {
+    if (overlapCount < capacity) {
       const localLabel = DateTime.fromISO(cStartISO, { zone: "utc" })
         .setZone(tz)
         .toFormat("HH:mm");
@@ -249,6 +283,47 @@ async function hasOverlap(
   );
 }
 
+async function hasCapacity(
+  supabase: SupabaseClient,
+  overlapCache: Map<string, ApptInterval[]>,
+  clientId: string,
+  startISO: string,
+  endISO: string,
+  capacity: number,
+  staffId?: string | null
+): Promise<boolean> {
+  const day = new Date(startISO);
+  day.setUTCHours(0, 0, 0, 0);
+
+  const windowStart = new Date(day);
+  const windowEnd = new Date(day);
+  windowEnd.setUTCHours(23, 59, 59, 999);
+
+  const windowStartISO = windowStart.toISOString();
+  const windowEndISO = windowEnd.toISOString();
+
+  await prefetchOverlaps(
+    supabase,
+    overlapCache,
+    clientId,
+    staffId ?? null,
+    windowStartISO,
+    windowEndISO
+  );
+
+  const key = makeOverlapKey(
+    clientId,
+    staffId ?? null,
+    windowStartISO,
+    windowEndISO
+  );
+
+  const existing = overlapCache.get(key) ?? [];
+  const overlapCount = countOverlapsInIntervals(existing, startISO, endISO);
+
+  return overlapCount < capacity;
+}
+
 type HoursResult =
   | { ok: true }
   | { ok: false; reason: "no_hours" | "closed" | "outside" };
@@ -286,19 +361,37 @@ async function isWithinBusinessHours(
   return { ok: true };
 }
 
-// ---------- result types (plain objects, like FAQ) ----------
+// ---------- result types ----------
 export type AppointmentFlowResult =
   | { status: "none" }
-  | { status: "need_info"; missing: string; question: string; suggestions?: string[]; draftId?: string }
+  | {
+      status: "need_info";
+      missing: string;
+      question: string;
+      suggestions?: string[];
+      draftId?: string;
+    }
   | { status: "confirm"; draftId: string; preview: string; phrase: string }
-  | { status: "confirmed"; appointment: any; calendarSynced: boolean; calendarError: string | null }
+  | {
+      status: "confirmed";
+      appointment: any;
+      calendarSynced: boolean;
+      calendarError: string | null;
+      message: string;
+    }
   | { status: "info"; message: string; appointmentId: string }
   | { status: "info_none"; message: string }
   | { status: "cancelled"; message: string; appointmentId: string }
   | { status: "cancel_not_found"; message: string }
   | { status: "rescheduled"; message: string; appointmentId: string }
   | { status: "reschedule_none"; message: string }
-  | { status: "availability"; message: string; suggestions: string[]; staff: string | null; date: string | null }
+  | {
+      status: "availability";
+      message: string;
+      suggestions: string[];
+      staff: string | null;
+      date: string | null;
+    }
   | { status: "availability_none"; message: string; suggestions: string[] }
   | { status: "error"; error: string; details?: string };
 
@@ -307,9 +400,8 @@ export type AppointmentFlowInput = {
   supabase: SupabaseClient;
   clientId: string;
   ownerUserId: string;
-  timezone: string; // already defaulted
+  timezone: string;
   staffEnabled: boolean;
-
   message: string;
   sessionId?: string | null;
   brainIntent?: string | null;
@@ -331,6 +423,7 @@ export async function runAppointmentFlow(
     } = input;
 
     const overlapCache = new Map<string, ApptInterval[]>();
+    const parallelCapacity = await getParallelCapacity(supabase, clientId);
 
     // ------------------------------------------------------------
     // Conversation State laden
@@ -405,7 +498,11 @@ export async function runAppointmentFlow(
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
 
@@ -438,27 +535,41 @@ export async function runAppointmentFlow(
       if (!nextAppt) {
         if (conv) {
           try {
-            await clearConversationState({ supabase, clientId, sessionId: sessionKey });
+            await clearConversationState({
+              supabase,
+              clientId,
+              sessionId: sessionKey,
+            });
           } catch (err) {
             console.warn("[APPOINTMENT INFO] clearConversationState failed", err);
           }
         }
 
-        return { status: "info_none", message: "Ich finde keinen zukünftigen Termin für Sie." };
+        return {
+          status: "info_none",
+          message: "Ich finde keinen zukünftigen Termin für Sie.",
+        };
       }
 
-const start = DateTime.fromISO(nextAppt.start_at, { zone: "utc" }).setZone(timezone);
-const dateStr = start.setLocale("de").toFormat("cccc, 'den' dd.MM.yyyy");
+      const start = DateTime.fromISO(nextAppt.start_at, { zone: "utc" }).setZone(
+        timezone
+      );
+      const dateStr = start.setLocale("de").toFormat("cccc, 'den' dd.MM.yyyy");
 
-const timeStr = start.toFormat("HH:mm");
-const [hh, mm] = timeStr.split(":");
-const timeSpoken =
-  mm === "00" ? `${parseInt(hh, 10)} Uhr` : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
-
+      const timeStr = start.toFormat("HH:mm");
+      const [hh, mm] = timeStr.split(":");
+      const timeSpoken =
+        mm === "00"
+          ? `${parseInt(hh, 10)} Uhr`
+          : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
 
       if (conv) {
         try {
-          await clearConversationState({ supabase, clientId, sessionId: sessionKey });
+          await clearConversationState({
+            supabase,
+            clientId,
+            sessionId: sessionKey,
+          });
         } catch (err) {
           console.warn("[APPOINTMENT INFO] clearConversationState failed", err);
         }
@@ -493,13 +604,18 @@ const timeSpoken =
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
         return {
           status: "need_info",
           missing: "date",
-          question: "Für welches Datum soll ich den Termin stornieren? Zum Beispiel: „08.02.2026“.",
+          question:
+            "Für welches Datum soll ich den Termin stornieren? Zum Beispiel: „08.02.2026“.",
         };
       }
 
@@ -508,13 +624,18 @@ const timeSpoken =
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
         return {
           status: "need_info",
           missing: "time",
-          question: "Und um welche Uhrzeit war der Termin? Zum Beispiel „15 Uhr“ oder „16:30“.",
+          question:
+            "Und um welche Uhrzeit war der Termin? Zum Beispiel „15 Uhr“ oder „16:30“.",
         };
       }
 
@@ -523,7 +644,11 @@ const timeSpoken =
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
         return {
@@ -535,7 +660,12 @@ const timeSpoken =
 
       const targetISO = localDateTimeToUTCISO(date, time, timezone);
       if (!targetISO) {
-        return { status: "need_info", missing: "time", question: "Die Uhrzeit habe ich nicht ganz verstanden. Sagen Sie bitte zum Beispiel „15 Uhr“ oder „16:30“." };
+        return {
+          status: "need_info",
+          missing: "time",
+          question:
+            "Die Uhrzeit habe ich nicht ganz verstanden. Sagen Sie bitte zum Beispiel „15 Uhr“ oder „16:30“.",
+        };
       }
 
       const { data: appt, error: apptErr } = await supabase
@@ -552,7 +682,11 @@ const timeSpoken =
       if (apptErr || !appt) {
         if (conv) {
           try {
-            await clearConversationState({ supabase, clientId, sessionId: sessionKey });
+            await clearConversationState({
+              supabase,
+              clientId,
+              sessionId: sessionKey,
+            });
           } catch (err) {
             console.warn("[CANCEL] clearConversationState failed", err);
           }
@@ -585,7 +719,11 @@ const timeSpoken =
 
       if (updErr) {
         console.error("[CANCEL] update error", updErr);
-        return { status: "error", error: "cancel_update_failed", details: updErr.message };
+        return {
+          status: "error",
+          error: "cancel_update_failed",
+          details: updErr.message,
+        };
       }
 
       if (!updated) {
@@ -594,15 +732,24 @@ const timeSpoken =
 
       if (conv) {
         try {
-          await clearConversationState({ supabase, clientId, sessionId: sessionKey });
+          await clearConversationState({
+            supabase,
+            clientId,
+            sessionId: sessionKey,
+          });
         } catch (err) {
           console.warn("[CANCEL] clearConversationState failed", err);
         }
       }
-const dateSpoken = DateTime.fromISO(date, { zone: timezone }).toFormat("dd.LL.yyyy");
-const [hh, mm] = time.split(":");
-const timeSpoken =
-  mm === "00" ? `${parseInt(hh, 10)} Uhr` : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
+
+      const dateSpoken = DateTime.fromISO(date, { zone: timezone }).toFormat(
+        "dd.LL.yyyy"
+      );
+      const [hh, mm] = time.split(":");
+      const timeSpoken =
+        mm === "00"
+          ? `${parseInt(hh, 10)} Uhr`
+          : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
 
       return {
         status: "cancelled",
@@ -620,8 +767,10 @@ const timeSpoken =
         mode: "reschedule",
       };
 
-      if (parsed.new_date) nextAppointment.date = isISODate(parsed.new_date) ? parsed.new_date : null;
-      if (parsed.new_time) nextAppointment.time = isTimeHM(parsed.new_time) ? parsed.new_time : null;
+      if (parsed.new_date)
+        nextAppointment.date = isISODate(parsed.new_date) ? parsed.new_date : null;
+      if (parsed.new_time)
+        nextAppointment.time = isTimeHM(parsed.new_time) ? parsed.new_time : null;
       if (parsed.customer_name) nextAppointment.customerName = parsed.customer_name;
 
       const newDate: string | null = nextAppointment.date ?? null;
@@ -633,7 +782,11 @@ const timeSpoken =
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
         return {
@@ -648,13 +801,18 @@ const timeSpoken =
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
         return {
           status: "need_info",
           missing: "new_date",
-          question: "Alles klar. Auf welches Datum möchten Sie den Termin verschieben? Zum Beispiel ‚08.02.2026‘.",
+          question:
+            "Alles klar. Auf welches Datum möchten Sie den Termin verschieben? Zum Beispiel ‚08.02.2026‘.",
         };
       }
 
@@ -663,13 +821,18 @@ const timeSpoken =
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
         return {
           status: "need_info",
           missing: "new_time",
-          question: "Und auf welche Uhrzeit soll ich ihn verschieben? Zum Beispiel ‚15 Uhr‘.",
+          question:
+            "Und auf welche Uhrzeit soll ich ihn verschieben? Zum Beispiel ‚15 Uhr‘.",
         };
       }
 
@@ -688,14 +851,19 @@ const timeSpoken =
       if (!oldAppt) {
         if (conv) {
           try {
-            await clearConversationState({ supabase, clientId, sessionId: sessionKey });
+            await clearConversationState({
+              supabase,
+              clientId,
+              sessionId: sessionKey,
+            });
           } catch (err) {
             console.warn("[RESCHEDULE] clearConversationState failed", err);
           }
         }
         return {
           status: "reschedule_none",
-          message: "Es ist kein zukünftiger Termin eingetragen, den ich verschieben könnte.",
+          message:
+            "Es ist kein zukünftiger Termin eingetragen, den ich verschieben könnte.",
         };
       }
 
@@ -705,7 +873,11 @@ const timeSpoken =
 
       const newStartISO = localDateTimeToUTCISO(newDate, newTime, timezone);
       if (!newStartISO) {
-        return { status: "need_info", missing: "new_time", question: "Bitte HH:MM (24h)." };
+        return {
+          status: "need_info",
+          missing: "new_time",
+          question: "Bitte HH:MM (24h).",
+        };
       }
 
       const newEndISO = DateTime.fromISO(newStartISO)
@@ -721,7 +893,11 @@ const timeSpoken =
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
         return {
@@ -750,7 +926,11 @@ const timeSpoken =
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
 
@@ -758,16 +938,17 @@ const timeSpoken =
       }
 
       const staffIdReschedule = oldAppt.staff_id ?? null;
-      const hasOverlapReschedule = await hasOverlap(
+      const hasFreeCapacityReschedule = await hasCapacity(
         supabase,
         overlapCache,
         clientId,
         newStartISO,
         newEndISO,
-        staffIdReschedule || undefined
+        staffIdReschedule ? 1 : parallelCapacity,
+        staffIdReschedule
       );
 
-      if (hasOverlapReschedule) {
+      if (!hasFreeCapacityReschedule) {
         const dayRef = DateTime.fromISO(newStartISO, { zone: "utc" })
           .setZone(timezone)
           .startOf("day")
@@ -782,7 +963,10 @@ const timeSpoken =
           dayRef,
           durationMin,
           timezone,
-          5
+          5,
+          undefined,
+          undefined,
+          staffIdReschedule ? 1 : parallelCapacity
         );
 
         const baseQuestion =
@@ -797,7 +981,11 @@ const timeSpoken =
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
 
@@ -812,7 +1000,11 @@ const timeSpoken =
         .maybeSingle();
 
       if (updErr || !updated) {
-        return { status: "error", error: "reschedule_failed", details: updErr?.message };
+        return {
+          status: "error",
+          error: "reschedule_failed",
+          details: updErr?.message,
+        };
       }
 
       if (updated.google_event_id) {
@@ -837,21 +1029,30 @@ const timeSpoken =
         .setZone(timezone)
         .setLocale("de");
 
-const oldDateStr = oldLocal.toFormat("cccc, 'den' dd.MM.yyyy");
-const newDateStr = newLocal.toFormat("cccc, 'den' dd.MM.yyyy");
+      const oldDateStr = oldLocal.toFormat("cccc, 'den' dd.MM.yyyy");
+      const newDateStr = newLocal.toFormat("cccc, 'den' dd.MM.yyyy");
 
-const oldTimeHHMM = oldLocal.toFormat("HH:mm");
-const [oldH, oldM] = oldTimeHHMM.split(":");
-const oldTimeSpoken = oldM === "00" ? `${parseInt(oldH, 10)} Uhr` : `${parseInt(oldH, 10)} Uhr ${parseInt(oldM, 10)}`;
+      const oldTimeHHMM = oldLocal.toFormat("HH:mm");
+      const [oldH, oldM] = oldTimeHHMM.split(":");
+      const oldTimeSpoken =
+        oldM === "00"
+          ? `${parseInt(oldH, 10)} Uhr`
+          : `${parseInt(oldH, 10)} Uhr ${parseInt(oldM, 10)}`;
 
-const newTimeHHMM = newLocal.toFormat("HH:mm");
-const [newH, newM] = newTimeHHMM.split(":");
-const newTimeSpoken = newM === "00" ? `${parseInt(newH, 10)} Uhr` : `${parseInt(newH, 10)} Uhr ${parseInt(newM, 10)}`;
-
+      const newTimeHHMM = newLocal.toFormat("HH:mm");
+      const [newH, newM] = newTimeHHMM.split(":");
+      const newTimeSpoken =
+        newM === "00"
+          ? `${parseInt(newH, 10)} Uhr`
+          : `${parseInt(newH, 10)} Uhr ${parseInt(newM, 10)}`;
 
       if (conv) {
         try {
-          await clearConversationState({ supabase, clientId, sessionId: sessionKey });
+          await clearConversationState({
+            supabase,
+            clientId,
+            sessionId: sessionKey,
+          });
         } catch (err) {
           console.warn("[RESCHEDULE] clearConversationState failed", err);
         }
@@ -864,166 +1065,193 @@ const newTimeSpoken = newM === "00" ? `${parseInt(newH, 10)} Uhr` : `${parseInt(
       };
     }
 
-// ------------------------------------------------------------------
-// CASE 4: AVAILABILITY – freie Zeiten abfragen
-// ------------------------------------------------------------------
-if (intent === "availability" || intent === "staff_availability") {
-  const durationMin: number = Number(parsed.duration_min ?? 30) || 30;
+    // ------------------------------------------------------------------
+    // CASE 4: AVAILABILITY – freie Zeiten abfragen
+    // ------------------------------------------------------------------
+    if (intent === "availability" || intent === "staff_availability") {
+      const durationMin: number = Number(parsed.duration_min ?? 30) || 30;
 
-  const requestedStaffName: string | null =
-    (parsed.preferred_staff ?? (parsed as any).staff ?? null) as string | null;
+      const requestedStaffName: string | null =
+        (parsed.preferred_staff ?? (parsed as any).staff ?? null) as string | null;
 
-  // Wenn staff_availability gefragt wird, aber staff feature aus ist:
-  // -> freundlich erklären + Datum abfragen (ohne Format-Zwang)
-  if (!staffEnabled && intent === "staff_availability") {
-    const dateOnly = parsed.date ?? null;
+      if (!staffEnabled && intent === "staff_availability") {
+        const dateOnly = parsed.date ?? null;
 
-    return {
-      status: "availability",
-      message:
-        "Aktuell können wir leider keine Mitarbeiterwünsche annehmen. Ich kann Ihnen aber allgemeine freie Zeiten nennen. Für welches Datum möchten Sie die Verfügbarkeit wissen? Zum Beispiel: „08.02.2026“.",
-      suggestions: [],
-      staff: null,
-      date: isISODate(dateOnly) ? dateOnly : null,
-    };
-  }
+        return {
+          status: "availability",
+          message:
+            "Aktuell können wir leider keine Mitarbeiterwünsche annehmen. Ich kann Ihnen aber allgemeine freie Zeiten nennen. Für welches Datum möchten Sie die Verfügbarkeit wissen? Zum Beispiel: „08.02.2026“.",
+          suggestions: [],
+          staff: null,
+          date: isISODate(dateOnly) ? dateOnly : null,
+        };
+      }
 
-  let nextAppointment: AppointmentCS = {
-    ...(appointmentState || {}),
-    mode: "info",
-  };
+      let nextAppointment: AppointmentCS = {
+        ...(appointmentState || {}),
+        mode: "info",
+      };
 
-  if (parsed.date) nextAppointment.date = isISODate(parsed.date) ? parsed.date : null;
-  if (requestedStaffName) nextAppointment.staffName = requestedStaffName;
+      if (parsed.date) nextAppointment.date = isISODate(parsed.date) ? parsed.date : null;
+      if (requestedStaffName) nextAppointment.staffName = requestedStaffName;
 
-  const date: string | null = nextAppointment.date ?? null;
+      const date: string | null = nextAppointment.date ?? null;
 
-  if (!date || !isISODate(date)) {
-    if (conv) {
-      await patchConversationState({
+      if (!date || !isISODate(date)) {
+        if (conv) {
+          await patchConversationState({
+            supabase,
+            id: conv.id,
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
+          });
+        }
+
+        return {
+          status: "need_info",
+          missing: "date",
+          question:
+            "Für welches Datum möchten Sie die freien Zeiten wissen? Zum Beispiel: „08.02.2026“.",
+        };
+      }
+
+      const dateSpoken = DateTime.fromISO(date, { zone: timezone }).toFormat(
+        "dd.LL.yyyy"
+      );
+
+      let staffId: string | null = null;
+      let staffName: string | null = nextAppointment.staffName ?? null;
+
+      if (intent === "staff_availability") {
+        if (!staffName) {
+          if (conv) {
+            await patchConversationState({
+              supabase,
+              id: conv.id,
+              patch: {
+                ...convState,
+                lastIntent: intent,
+                appointment: nextAppointment,
+              },
+            });
+          }
+
+          return {
+            status: "need_info",
+            missing: "staff",
+            question:
+              "Für welchen Mitarbeiter möchten Sie freie Zeiten wissen? Bitte nennen Sie mir kurz den Namen.",
+          };
+        }
+
+        const { data: staffRow } = await supabase
+          .from("staff")
+          .select("id, name")
+          .eq("client_id", clientId)
+          .ilike("name", staffName)
+          .maybeSingle();
+
+        if (!staffRow) {
+          if (conv) {
+            await patchConversationState({
+              supabase,
+              id: conv.id,
+              patch: {
+                ...convState,
+                lastIntent: intent,
+                appointment: nextAppointment,
+              },
+            });
+          }
+
+          return {
+            status: "need_info",
+            missing: "staff",
+            question:
+              "Ich habe diesen Namen leider nicht gefunden. Für welchen Mitarbeiter genau? Bitte nennen Sie mir kurz den Namen.",
+          };
+        }
+
+        staffId = staffRow.id;
+        staffName = staffRow.name;
+
+        nextAppointment.staffId = staffId;
+        nextAppointment.staffName = staffName;
+      }
+
+      const windowStart: string | null = parsed.window_start ?? null;
+      const windowEnd: string | null = parsed.window_end ?? null;
+
+      const windowStartMin =
+        windowStart && isTimeHM(windowStart) ? hmToMinutes(windowStart) : null;
+      const windowEndMin =
+        windowEnd && isTimeHM(windowEnd) ? hmToMinutes(windowEnd) : null;
+
+      const dayRef = DateTime.fromISO(date, { zone: timezone })
+        .set({ hour: 12 })
+        .toJSDate();
+
+      const suggestions = await findNextFreeSlots(
         supabase,
-        id: conv.id,
-        patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
-      });
-    }
+        overlapCache,
+        clientId,
+        staffId,
+        dayRef,
+        durationMin,
+        timezone,
+        3,
+        windowStartMin ?? undefined,
+        windowEndMin ?? undefined,
+        staffId ? 1 : parallelCapacity
+      );
 
-    return {
-      status: "need_info",
-      missing: "date",
-      question:
-        "Für welches Datum möchten Sie die freien Zeiten wissen? Zum Beispiel: „08.02.2026“.",
-    };
-  }
+      if (!suggestions.length) {
+        const msg = staffName
+          ? `Am ${dateSpoken} habe ich für ${staffName} leider keine freien Zeiten gefunden.`
+          : `Am ${dateSpoken} habe ich leider keine freien Zeiten gefunden.`;
 
-  // Datum für Sprachausgabe (statt ISO)
-  const dateSpoken = DateTime.fromISO(date, { zone: timezone }).toFormat("dd.LL.yyyy");
+        if (conv) {
+          await patchConversationState({
+            supabase,
+            id: conv.id,
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
+          });
+        }
 
-  let staffId: string | null = null;
-  let staffName: string | null = nextAppointment.staffName ?? null;
+        return { status: "availability_none", message: msg, suggestions: [] };
+      }
 
-  if (intent === "staff_availability") {
-    if (!staffName) {
+      const msg = staffName
+        ? `Am ${dateSpoken} hätte ${staffName} zum Beispiel folgende freie Zeiten: ${suggestions.join(", ")}.`
+        : `Am ${dateSpoken} hätte ich zum Beispiel folgende freie Zeiten: ${suggestions.join(", ")}.`;
+
       if (conv) {
         await patchConversationState({
           supabase,
           id: conv.id,
-          patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+          patch: {
+            ...convState,
+            lastIntent: intent,
+            appointment: nextAppointment,
+          },
         });
       }
 
       return {
-        status: "need_info",
-        missing: "staff",
-        question:
-          "Für welchen Mitarbeiter möchten Sie freie Zeiten wissen? Bitte nennen Sie mir kurz den Namen.",
+        status: "availability",
+        message: msg,
+        suggestions,
+        staff: staffName,
+        date,
       };
     }
-
-    const { data: staffRow } = await supabase
-      .from("staff")
-      .select("id, name")
-      .eq("client_id", clientId)
-      .ilike("name", staffName)
-      .maybeSingle();
-
-    if (!staffRow) {
-      if (conv) {
-        await patchConversationState({
-          supabase,
-          id: conv.id,
-          patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
-        });
-      }
-
-      return {
-        status: "need_info",
-        missing: "staff",
-        question:
-          "Ich habe diesen Namen leider nicht gefunden. Für welchen Mitarbeiter genau? Bitte nennen Sie mir kurz den Namen.",
-      };
-    }
-
-    staffId = staffRow.id;
-    staffName = staffRow.name;
-
-    nextAppointment.staffId = staffId;
-    nextAppointment.staffName = staffName;
-  }
-
-  const windowStart: string | null = parsed.window_start ?? null;
-  const windowEnd: string | null = parsed.window_end ?? null;
-
-  const windowStartMin =
-    windowStart && isTimeHM(windowStart) ? hmToMinutes(windowStart) : null;
-  const windowEndMin =
-    windowEnd && isTimeHM(windowEnd) ? hmToMinutes(windowEnd) : null;
-
-  const dayRef = DateTime.fromISO(date, { zone: timezone }).set({ hour: 12 }).toJSDate();
-
-  const suggestions = await findNextFreeSlots(
-    supabase,
-    overlapCache,
-    clientId,
-    staffId,
-    dayRef,
-    durationMin,
-    timezone,
-    3,
-    windowStartMin ?? undefined,
-    windowEndMin ?? undefined
-  );
-
-  if (!suggestions.length) {
-    const msg = staffName
-      ? `Am ${dateSpoken} habe ich für ${staffName} leider keine freien Zeiten gefunden.`
-      : `Am ${dateSpoken} habe ich leider keine freien Zeiten gefunden.`;
-
-    if (conv) {
-      await patchConversationState({
-        supabase,
-        id: conv.id,
-        patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
-      });
-    }
-
-    return { status: "availability_none", message: msg, suggestions: [] };
-  }
-
-  const msg = staffName
-    ? `Am ${dateSpoken} hätte ${staffName} zum Beispiel folgende freie Zeiten: ${suggestions.join(", ")}.`
-    : `Am ${dateSpoken} hätte ich zum Beispiel folgende freie Zeiten: ${suggestions.join(", ")}.`;
-
-  if (conv) {
-    await patchConversationState({
-      supabase,
-      id: conv.id,
-      patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
-    });
-  }
-
-  return { status: "availability", message: msg, suggestions, staff: staffName, date };
-}
-
 
     // ------------------------------------------------------------------
     // CASE 5.1 : appointment_confirm
@@ -1064,7 +1292,17 @@ if (intent === "availability" || intent === "staff_availability") {
         return { status: "error", error: "outside_business_hours" };
       }
 
-      if (await hasOverlap(supabase, overlapCache, clientId, draft.start_at, draft.end_at)) {
+      const hasFreeCapacityAtConfirm = await hasCapacity(
+        supabase,
+        overlapCache,
+        clientId,
+        draft.start_at,
+        draft.end_at,
+        draft.staff_id ? 1 : parallelCapacity,
+        draft.staff_id ?? null
+      );
+
+      if (!hasFreeCapacityAtConfirm) {
         return { status: "error", error: "slot_taken" };
       }
 
@@ -1087,7 +1325,11 @@ if (intent === "availability" || intent === "staff_availability") {
 
       if (aErr || !appts || !appts[0]) {
         console.error("[APPOINTMENT CONFIRM] db_insert_failed", aErr);
-        return { status: "error", error: "db_insert_failed", details: aErr?.message };
+        return {
+          status: "error",
+          error: "db_insert_failed",
+          details: aErr?.message,
+        };
       }
 
       const appointment = appts[0];
@@ -1119,14 +1361,12 @@ if (intent === "availability" || intent === "staff_availability") {
         }
       } catch (gErr: any) {
         console.error("[APPOINTMENT CONFIRM] google_insert_failed", gErr);
-        calendarError = gErr instanceof Error ? gErr.message : String(gErr ?? "unknown");
+        calendarError =
+          gErr instanceof Error ? gErr.message : String(gErr ?? "unknown");
       }
 
       await supabase.from("appointment_drafts").delete().eq("id", draft.id);
 
-           await supabase.from("appointment_drafts").delete().eq("id", draft.id);
-
-      // Bestätigungsmail an Unternehmen (best effort)
       try {
         const { data: clientRow } = await supabase
           .from("clients")
@@ -1170,17 +1410,34 @@ if (intent === "availability" || intent === "staff_availability") {
 
       if (conv) {
         try {
-          await clearConversationState({ supabase, clientId, sessionId: sessionKey });
+          await clearConversationState({
+            supabase,
+            clientId,
+            sessionId: sessionKey,
+          });
         } catch (err) {
           console.warn("[APPOINTMENT CONFIRM] clearConversationState failed", err);
         }
       }
 
-      return { status: "confirmed", appointment, calendarSynced, calendarError };
+            const localStart = DateTime.fromISO(appointment.start_at, { zone: "utc" })
+        .setZone(timezone)
+        .setLocale("de");
+
+      const dateLabel = localStart.toFormat("dd.LL.yyyy");
+      const timeLabel = localStart.toFormat("HH:mm");
+
+      return {
+        status: "confirmed",
+        appointment,
+        calendarSynced,
+        calendarError,
+        message: `Perfekt, Ihr Termin ist jetzt für den ${dateLabel} um ${timeLabel} eingetragen. Kann ich sonst noch etwas für Sie tun?`,
+      };
     }
 
     // ------------------------------------------------------------------
-    // CASE 5: CREATE – neuer Termin (TZ-safe via Luxon)
+    // CASE 5: CREATE – neuer Termin
     // ------------------------------------------------------------------
     if (intent !== "create_appointment") {
       return { status: "none" };
@@ -1210,26 +1467,40 @@ if (intent === "availability" || intent === "staff_availability") {
         await patchConversationState({
           supabase,
           id: conv.id,
-          patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+          patch: {
+            ...convState,
+            lastIntent: intent,
+            appointment: nextAppointment,
+          },
         });
       }
-      return { status: "need_info", missing, question, ...(extra ?? {}) } as AppointmentFlowResult;
+      return {
+        status: "need_info",
+        missing,
+        question,
+        ...(extra ?? {}),
+      } as AppointmentFlowResult;
     };
 
     if (!nextAppointment.date) {
-      return await needInfo("date", "Für welches Datum soll ich den Termin eintragen? Zum Beispiel: ‚08.02.2026‘.");
+      return await needInfo(
+        "date",
+        "Für welches Datum soll ich den Termin eintragen? Zum Beispiel: ‚08.02.2026‘."
+      );
     }
-    // UX-Boost: Wenn Datum schon da ist, aber Service + Uhrzeit fehlen,
-// fragen wir beides in einem Schritt ab (reduziert Ping-Pong und wirkt natürlicher).
-if (nextAppointment.date && !nextAppointment.time && !nextAppointment.serviceName) {
-  return await needInfo(
-    "time",
-    `Alles klar. Für welche Leistung und welche Uhrzeit ist der Termin? Zum Beispiel: „Haarschnitt um 15 Uhr“.`
-  );
-}
+
+    if (nextAppointment.date && !nextAppointment.time && !nextAppointment.serviceName) {
+      return await needInfo(
+        "time",
+        "Alles klar. Für welche Leistung und welche Uhrzeit ist der Termin? Zum Beispiel: „Haarschnitt um 15 Uhr“."
+      );
+    }
 
     if (!nextAppointment.time) {
-      return await needInfo("time", "Und welche Uhrzeit passt Ihnen? Zum Beispiel ‚15 Uhr‘ oder ‚16:30‘.");
+      return await needInfo(
+        "time",
+        "Und welche Uhrzeit passt Ihnen? Zum Beispiel ‚15 Uhr‘ oder ‚16:30‘."
+      );
     }
 
     const dateStr: string = nextAppointment.date!;
@@ -1245,19 +1516,25 @@ if (nextAppointment.date && !nextAppointment.time && !nextAppointment.serviceNam
       .maybeSingle();
 
     if (!dayErr && dayHours?.is_closed) {
-      return await needInfo("date", "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?");
+      return await needInfo(
+        "date",
+        "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?"
+      );
     }
 
     const startISOpre = localDateTimeToUTCISO(dateStr, timeStr, timezone);
     if (!startISOpre) {
-      return await needInfo("time", "Die Uhrzeit habe ich nicht ganz verstanden. Sagen Sie bitte zum Beispiel  ‚15 Uhr‘ oder ‚16:30‘.")
+      return await needInfo(
+        "time",
+        "Die Uhrzeit habe ich nicht ganz verstanden. Sagen Sie bitte zum Beispiel ‚15 Uhr‘ oder ‚16:30‘."
+      );
     }
 
     const startAtPre = new Date(startISOpre);
     if (startAtPre.getTime() <= Date.now()) {
       return await needInfo(
         "date",
-        "Das Datum liegt in der Vergangenheit. Welches zukünftige Datum passt Ihnen? Sagen Sie bitte zum Beispiel  ‚08.02.2026‘."
+        "Das Datum liegt in der Vergangenheit. Welches zukünftige Datum passt Ihnen? Sagen Sie bitte zum Beispiel ‚08.02.2026‘."
       );
     }
 
@@ -1278,7 +1555,10 @@ if (nextAppointment.date && !nextAppointment.time && !nextAppointment.serviceNam
 
     if (!preHoursResult.ok) {
       if (preHoursResult.reason === "closed") {
-        return await needInfo("date", "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?");
+        return await needInfo(
+          "date",
+          "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?"
+        );
       }
       return await needInfo(
         "time",
@@ -1293,21 +1573,21 @@ if (nextAppointment.date && !nextAppointment.time && !nextAppointment.serviceNam
       );
     }
 
-   const serviceText = (nextAppointment.serviceName ?? "").trim();
-if (!serviceText) {
-  return await needInfo(
-    "service",
-    "Um welche Dienstleistung geht es beim Termin? Zum Beispiel Beratung oder Behandlung."
-  );
-}
+    const serviceText = (nextAppointment.serviceName ?? "").trim();
+    if (!serviceText) {
+      return await needInfo(
+        "service",
+        "Um welche Dienstleistung geht es beim Termin? Zum Beispiel Beratung oder Behandlung."
+      );
+    }
 
-const svc = await getServiceByMessage(supabase, clientId, serviceText);
-if (!svc) {
-  return await needInfo(
-    "service",
-    "Für welche Leistung möchten Sie genau buchen? Zum Beispiel Beratung oder Behandlung."
-  );
-}
+    const svc = await getServiceByMessage(supabase, clientId, serviceText);
+    if (!svc) {
+      return await needInfo(
+        "service",
+        "Für welche Leistung möchten Sie genau buchen? Zum Beispiel Beratung oder Behandlung."
+      );
+    }
 
     const durationMin = svc.durationMin ?? 30;
 
@@ -1330,7 +1610,10 @@ if (!svc) {
 
     if (!hoursResult.ok) {
       if (hoursResult.reason === "closed") {
-        return await needInfo("date", "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?");
+        return await needInfo(
+          "date",
+          "An dem Tag ist geschlossen. Haben Sie einen anderen Tag im Kopf?"
+        );
       }
       return await needInfo(
         "time",
@@ -1342,7 +1625,14 @@ if (!svc) {
     const customerPhone: string | null = nextAppointment.phone ?? null;
     const needsCustomerName = !customerName || customerName.trim().length === 0;
 
-    // STAFF-LOGIK
+    if (needsCustomerName) {
+      return await needInfo(
+        "customer_name",
+        "Auf welchen Namen darf ich den Termin eintragen?"
+      );
+    }
+
+    // STAFF / CAPACITY-LOGIK
     let staffId: string | null = null;
     let staffName: string | null = nextAppointment.staffName ?? null;
 
@@ -1350,10 +1640,20 @@ if (!svc) {
       staffId = null;
       staffName = null;
 
-      const overlapAny = await hasOverlap(supabase, overlapCache, clientId, startISO, endISO);
+      const hasFreeCapacity = await hasCapacity(
+        supabase,
+        overlapCache,
+        clientId,
+        startISO,
+        endISO,
+        parallelCapacity,
+        null
+      );
 
-      if (overlapAny) {
-        const dayRef = DateTime.fromISO(dateStr, { zone: timezone }).set({ hour: 12 }).toJSDate();
+      if (!hasFreeCapacity) {
+        const dayRef = DateTime.fromISO(dateStr, { zone: timezone })
+          .set({ hour: 12 })
+          .toJSDate();
 
         const suggestions = await findNextFreeSlots(
           supabase,
@@ -1363,19 +1663,28 @@ if (!svc) {
           dayRef,
           durationMin,
           timezone,
-          5
+          5,
+          undefined,
+          undefined,
+          parallelCapacity
         );
 
         const baseQuestion =
           "Zu dieser Zeit ist leider kein Slot frei. Welche andere Uhrzeit innerhalb der Öffnungszeiten passt Ihnen?";
         const question =
-          suggestions.length > 0 ? `${baseQuestion} Zum Beispiel: ${suggestions.join(", ")}.` : baseQuestion;
+          suggestions.length > 0
+            ? `${baseQuestion} Zum Beispiel: ${suggestions.join(", ")}.`
+            : baseQuestion;
 
         if (conv) {
           await patchConversationState({
             supabase,
             id: conv.id,
-            patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+            patch: {
+              ...convState,
+              lastIntent: intent,
+              appointment: nextAppointment,
+            },
           });
         }
 
@@ -1391,7 +1700,10 @@ if (!svc) {
           .maybeSingle();
 
         if (!staffRow) {
-          return await needInfo("staff", "Welcher Mitarbeiter oder welche Mitarbeiterin soll es sein?");
+          return await needInfo(
+            "staff",
+            "Welcher Mitarbeiter oder welche Mitarbeiterin soll es sein?"
+          );
         }
 
         staffId = staffRow.id;
@@ -1407,7 +1719,9 @@ if (!svc) {
         );
 
         if (overlapRequested) {
-          const dayRef = DateTime.fromISO(dateStr, { zone: timezone }).set({ hour: 12 }).toJSDate();
+          const dayRef = DateTime.fromISO(dateStr, { zone: timezone })
+            .set({ hour: 12 })
+            .toJSDate();
 
           const suggestions = await findNextFreeSlots(
             supabase,
@@ -1417,7 +1731,10 @@ if (!svc) {
             dayRef,
             durationMin,
             timezone,
-            5
+            5,
+            undefined,
+            undefined,
+            1
           );
 
           const baseQuestion = `Zu dieser Zeit ist ${staffName} bereits ausgebucht.`;
@@ -1430,7 +1747,11 @@ if (!svc) {
             await patchConversationState({
               supabase,
               id: conv.id,
-              patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+              patch: {
+                ...convState,
+                lastIntent: intent,
+                appointment: nextAppointment,
+              },
             });
           }
 
@@ -1469,7 +1790,14 @@ if (!svc) {
             let freeStaff: any = null;
 
             for (const s of staffList) {
-              const ov = await hasOverlap(supabase, overlapCache, clientId, startISO, endISO, s.id);
+              const ov = await hasOverlap(
+                supabase,
+                overlapCache,
+                clientId,
+                startISO,
+                endISO,
+                s.id
+              );
               if (!ov) {
                 freeStaff = s;
                 break;
@@ -1480,7 +1808,9 @@ if (!svc) {
               staffId = freeStaff.id;
               staffName = freeStaff.name;
             } else {
-              const dayRef = DateTime.fromISO(dateStr, { zone: timezone }).set({ hour: 12 }).toJSDate();
+              const dayRef = DateTime.fromISO(dateStr, { zone: timezone })
+                .set({ hour: 12 })
+                .toJSDate();
 
               const suggestions = await findNextFreeSlots(
                 supabase,
@@ -1490,19 +1820,28 @@ if (!svc) {
                 dayRef,
                 durationMin,
                 timezone,
-                5
+                5,
+                undefined,
+                undefined,
+                parallelCapacity
               );
 
               const baseQuestion =
                 "Zu dieser Zeit ist kein Mitarbeiter frei. Welche andere Uhrzeit innerhalb der Öffnungszeiten passt Ihnen?";
               const question =
-                suggestions.length > 0 ? `${baseQuestion} Zum Beispiel: ${suggestions.join(", ")}.` : baseQuestion;
+                suggestions.length > 0
+                  ? `${baseQuestion} Zum Beispiel: ${suggestions.join(", ")}.`
+                  : baseQuestion;
 
               if (conv) {
                 await patchConversationState({
                   supabase,
                   id: conv.id,
-                  patch: { ...convState, lastIntent: intent, appointment: nextAppointment },
+                  patch: {
+                    ...convState,
+                    lastIntent: intent,
+                    appointment: nextAppointment,
+                  },
                 });
               }
 
@@ -1544,7 +1883,6 @@ if (!svc) {
       };
     }
 
-    // CSH aktualisieren (inkl. draftId)
     if (conv) {
       const nextStateAfterDraft: AppointmentCS = {
         ...nextAppointment,
@@ -1561,30 +1899,30 @@ if (!svc) {
       await patchConversationState({
         supabase,
         id: conv.id,
-        patch: { ...convState, lastIntent: intent, appointment: nextStateAfterDraft },
+        patch: {
+          ...convState,
+          lastIntent: intent,
+          appointment: nextStateAfterDraft,
+        },
       });
 
       nextAppointment = nextStateAfterDraft;
     }
 
-    if (needsCustomerName) {
-      return {
-        status: "need_info",
-        missing: "customer_name",
-        question: "Auf welchen Namen darf ich den Termin eintragen?",
-        draftId: draft.id,
-      };
-    }
-
     const customerPart =
-      customerName && customerName.trim().length > 0 ? ` für ${customerName.trim()}` : "";
-    const staffPart = staffName && staffName.trim().length > 0 ? ` bei ${staffName.trim()}` : "";
-    const dateSpoken = DateTime.fromISO(dateStr, { zone: timezone }).toFormat("dd.LL.yyyy");
+      customerName && customerName.trim().length > 0
+        ? ` für ${customerName.trim()}`
+        : "";
+    const staffPart =
+      staffName && staffName.trim().length > 0 ? ` bei ${staffName.trim()}` : "";
+    const dateSpoken = DateTime.fromISO(dateStr, { zone: timezone }).toFormat(
+      "dd.LL.yyyy"
+    );
     const [hh, mm] = timeStr.split(":");
     const timeSpoken =
       mm === "00"
-      ? `${parseInt(hh, 10)} Uhr`
-      : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
+        ? `${parseInt(hh, 10)} Uhr`
+        : `${parseInt(hh, 10)} Uhr ${parseInt(mm, 10)}`;
 
     const preview = `„${svc.title}“ am ${dateSpoken} um ${timeSpoken}${customerPart}${staffPart}`;
     const phrase = `${staffNote}Ich habe ${preview} eingetragen. Passt das so?`.trim();
@@ -1592,7 +1930,8 @@ if (!svc) {
     return { status: "confirm", draftId: draft.id, preview, phrase };
   } catch (err: unknown) {
     console.error("[CALLFLOW appointment] ERROR", err);
-    const message = err instanceof Error ? err.message : JSON.stringify(err, null, 2);
+    const message =
+      err instanceof Error ? err.message : JSON.stringify(err, null, 2);
     return { status: "error", error: "internal_error", details: message };
   }
 }
