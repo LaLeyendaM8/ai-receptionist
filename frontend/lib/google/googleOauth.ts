@@ -1,5 +1,5 @@
 // lib/googleOauth.ts
-import { getBaseUrl } from "./getBaseUrl";
+import { getBaseUrl } from "@/lib/getBaseUrl";
 
 export function getRedirectUri(req: Request) {
   const base = getBaseUrl(req);
