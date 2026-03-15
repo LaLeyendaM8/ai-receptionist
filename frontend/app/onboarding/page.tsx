@@ -132,7 +132,7 @@ export default function OnboardingPage() {
         weekday: h.weekday,
         open_min: h.closed ? null : timeToMinutes(h.open),
         close_min: h.closed ? null : timeToMinutes(h.close),
-        closed: h.closed,
+        is_closed: h.closed,
       })),
       services: services
         .filter((s) => s.name.trim())

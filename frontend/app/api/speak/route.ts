@@ -23,7 +23,7 @@ async function synth(text: string, voiceId?: string) {
       ? DEFAULT_VOICE_ID
       : voiceId || DEFAULT_VOICE_ID;
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${id}?optimize_streaming_latency=0`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${id}?optimize_streaming_latency=2`;
 
   const resp = await fetch(url, {
     method: "POST",
@@ -34,7 +34,7 @@ async function synth(text: string, voiceId?: string) {
     },
     body: JSON.stringify({
       text,
-      model_id: "eleven_multilingual_v2",
+      model_id: "eleven_turbo_v2_5",
       voice_settings: { stability: 0.3, similarity_boost: 0.8 },
     }),
   });

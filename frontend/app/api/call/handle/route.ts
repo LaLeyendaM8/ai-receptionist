@@ -211,8 +211,8 @@ export async function POST(req: Request) {
           language: "de-DE",
           action: `${base}/api/call/handle`,
           method: "POST",
-          speechTimeout: "auto",
-          timeout: 12,
+          speechTimeout: "1",
+          timeout: 8,
           actionOnEmptyResult: true,
         });
 
@@ -234,8 +234,8 @@ export async function POST(req: Request) {
         language: "de-DE",
         action: `${base}/api/call/handle`,
         method: "POST",
-        speechTimeout: "auto",
-        timeout: 12,
+        speechTimeout: "1",
+        timeout: 8,
         actionOnEmptyResult: true,
       });
 
@@ -286,8 +286,8 @@ export async function POST(req: Request) {
           language: "de-DE",
           action: `${base}/api/call/handle`,
           method: "POST",
-          speechTimeout: "auto",
-          timeout: 12,
+          speechTimeout: "1",
+          timeout: 8,
           actionOnEmptyResult: true,
         });
 
@@ -307,8 +307,8 @@ export async function POST(req: Request) {
         language: "de-DE",
         action: `${base}/api/call/handle`,
         method: "POST",
-        speechTimeout: "auto",
-        timeout: 12,
+        speechTimeout: "1",
+        timeout: 8,
         actionOnEmptyResult: true,
       });
 
@@ -400,8 +400,8 @@ export async function POST(req: Request) {
         language: "de-DE",
         action: `${base}/api/call/handle`,
         method: "POST",
-        speechTimeout: "auto",
-        timeout: 12,
+        speechTimeout: "1",
+        timeout: 8,
         actionOnEmptyResult: true,
       });
 
@@ -431,8 +431,8 @@ export async function POST(req: Request) {
       language: "de-DE",
       action: `${base}/api/call/handle`,
       method: "POST",
-      speechTimeout: "auto",
-      timeout: 12,
+      speechTimeout: "1",
+      timeout: 8,
       actionOnEmptyResult: true,
     });
 

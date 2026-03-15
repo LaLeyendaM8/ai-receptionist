@@ -143,7 +143,7 @@ export async function POST(req: Request) {
 
     if (hours.length > 0) {
       const hourRows = hours.map((h: any) => {
-  const isClosed = h.is_closed ?? false;
+  const isClosed = Boolean(h.is_closed ?? h.closed ?? false);
 
   return {
     client_id: clientId,
