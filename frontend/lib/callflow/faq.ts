@@ -221,6 +221,7 @@ export async function runFaqFlow(input: FaqFlowInput): Promise<FaqFlowResult> {
     } = input;
 
     const { clientId, text: context } = await buildFaqContext({
+      supabase,
       userId: userId ?? null,
       clientId: clientIdFromBody ?? undefined,
     });
