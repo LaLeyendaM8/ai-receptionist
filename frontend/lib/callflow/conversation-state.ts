@@ -1,44 +1,12 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import type {
+  AppointmentState,
+  HandoffState,
+  ConversationStateJson,
+} from "@/lib/callflow/types";
 
-export type AppointmentCS = {
-  mode?: "booking" | "info" | "cancel" | "reschedule";
-  draftId?: string | null;
-  date?: string | null;
-  time?: string | null;
-  serviceId?: string | null;
-  serviceName?: string | null;
-  staffId?: string | null;
-  staffName?: string | null;
-  customerName?: string | null;
-  phone?: string | null;
-};
-
-export type HandoffCS = {
-  mode?: "escalation" | null;
-  source?: "faq" | "human_handoff" | "fallback" | null;
-  choice?: "transfer" | "message" | null;
-  stage?:
-    | "awaiting_choice"
-    | "awaiting_message"
-    | "awaiting_name"
-    | "awaiting_phone"
-    | "awaiting_phone_confirm"
-    | null;
-  question?: string | null;
-  customerName?: string | null;
-  customerPhone?: string | null;
-};
-
-export type ConversationStateJson = {
-  lastIntent?: string;
-  step?: string;
-  appointment?: AppointmentCS;
-  handoff?: HandoffCS;
-
-  // Counters
-  noSpeechCount?: number;
-  noUnderstandCount?: number;
-};
+export type AppointmentCS = AppointmentState;
+export type HandoffCS = HandoffState;
 
 export type ConversationState = {
   id: string;

@@ -12,7 +12,7 @@ import {
   resetCounters,
   patchConversationState,
 } from "@/lib/callflow/conversation-state";
-import { runGptReceptionistFlow } from "@/lib/callflow/gpt-receptionist";
+import { runCallflowOrchestrator } from "@/lib/callflow/orchestrator";
 
 // ---------------------------------------------------------------------------
 // Konfiguration / Helper
@@ -338,14 +338,14 @@ export async function POST(req: Request) {
     let out: any = null;
 
     try {
-      out = await runGptReceptionistFlow({
-        supabase,
-        text: userText,
-        fromNumber,
-        toNumber,
-        clientId: clientProfile?.id ?? null,
-        sessionId,
-      } as any);
+      out = await runCallflowOrchestrator({
+  supabase,
+  text: userText,
+  fromNumber,
+  toNumber,
+  clientId: clientProfile?.id ?? null,
+  sessionId,
+});
 
       if (out?.success) {
         reply = out.reply || reply;
