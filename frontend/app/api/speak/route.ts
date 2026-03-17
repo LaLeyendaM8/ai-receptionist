@@ -14,6 +14,33 @@ function clampText(t: unknown) {
   return s.length > MAX_TEXT_CHARS ? s.slice(0, MAX_TEXT_CHARS) : s;
 }
 
+function normalizeForSpeech(input: string) {
+  return input
+    // Bereiche wie 09:00–18:00 / 09:00-18:00
+    .replace(/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/g, (_, h1, m1, h2, m2) => {
+      const left =
+        m1 === "00" ? `${parseInt(h1, 10)} Uhr` : `${parseInt(h1, 10)} Uhr ${parseInt(m1, 10)}`;
+      const right =
+        m2 === "00" ? `${parseInt(h2, 10)} Uhr` : `${parseInt(h2, 10)} Uhr ${parseInt(m2, 10)}`;
+      return `${left} bis ${right}`;
+    })
+
+    // Geldbeträge wie 30.00 € / 30,00 €
+    .replace(/(\d+)[\.,]00\s*€/g, "$1 Euro")
+    .replace(/(\d+)\s*€/g, "$1 Euro")
+
+    // Uhrzeiten wie 18:00
+    .replace(/\b(\d{1,2}):00\b/g, (_, h) => `${parseInt(h, 10)} Uhr`)
+
+    // Uhrzeiten wie 18:30
+    .replace(/\b(\d{1,2}):(\d{2})\b/g, (_, h, m) => {
+      return `${parseInt(h, 10)} Uhr ${parseInt(m, 10)}`;
+    })
+
+    // einzelnes Euro-Zeichen als fallback
+    .replace(/€/g, "Euro");
+}
+
 async function synth(text: string, voiceId?: string) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY missing");
@@ -65,9 +92,9 @@ export async function GET(req: Request) {
         });
       }
 
-      text = clampText(verifiedText);
+      text = normalizeForSpeech(clampText(verifiedText));
     } else {
-      text = clampText(searchParams.get("text"));
+      text = normalizeForSpeech(clampText(searchParams.get("text")));
     }
 
     const voiceId = searchParams.get("voiceId") || undefined;
@@ -106,7 +133,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const text = clampText(body?.text);
+    const text = normalizeForSpeech(clampText(body?.text));
     const voiceId = body?.voiceId || undefined;
 
     if (!text) {

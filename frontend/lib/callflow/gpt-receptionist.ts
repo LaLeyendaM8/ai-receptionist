@@ -5,6 +5,7 @@ import {
   incrementCounter,
   patchConversationState,
   type HandoffCS,
+  type AppointmentCS,
 } from "@/lib/callflow/conversation-state";
 import { runAppointmentFlow } from "@/lib/callflow/appointment";
 import { runFaqFlow } from "@/lib/callflow/faq";
@@ -116,6 +117,81 @@ function hardEndFromText(text: string) {
   ];
 
   return phrases.some((p) => t.includes(p));
+}
+
+function isAppointmentIntentLike(intent?: string | null) {
+  if (!intent) return false;
+
+  return new Set([
+    "create_appointment",
+    "cancel_appointment",
+    "reschedule_appointment",
+    "appointment_info",
+    "availability",
+    "staff_availability",
+    "appointment_confirm",
+    "appointment",
+    "appointment_booking",
+    "route_appointment",
+  ]).has(intent);
+}
+
+function appointmentStateIsOpen(state?: AppointmentCS | null) {
+  if (!state) return false;
+
+  return Boolean(
+    state.mode ||
+      state.draftId ||
+      state.date ||
+      state.time ||
+      state.serviceName ||
+      state.customerName ||
+      state.staffName
+  );
+}
+
+function looksLikeFaqInterruption(text: string) {
+  const t = (text || "").trim().toLowerCase();
+
+  if (!t) return false;
+
+  const faqSignals = [
+    "wann habt ihr",
+    "wann haben sie",
+    "wie lange",
+    "was kostet",
+    "welche leistungen",
+    "welche services",
+    "wo seid ihr",
+    "wo sind sie",
+    "adresse",
+    "telefonnummer",
+    "email",
+    "e-mail",
+    "öffnungszeiten",
+    "habt ihr offen",
+    "haben sie offen",
+    "preis",
+    "preise",
+  ];
+
+  return faqSignals.some((p) => t.includes(p));
+}
+
+function shouldBypassBrainToAppointment(args: {
+  text: string;
+  lastIntent?: string;
+  appointmentState?: AppointmentCS | null;
+  handoffStage?: string | null;
+}) {
+  const { text, lastIntent, appointmentState, handoffStage } = args;
+
+  if (handoffStage) return false;
+  if (!isAppointmentIntentLike(lastIntent)) return false;
+  if (!appointmentStateIsOpen(appointmentState)) return false;
+  if (looksLikeFaqInterruption(text)) return false;
+
+  return true;
 }
 
 function buildSystemPrompt(profileText: string) {
@@ -245,6 +321,8 @@ export async function runGptReceptionistFlow(
 
     let conv: any = null;
     let handoffState: HandoffCS = {};
+    let appointmentState: AppointmentCS = {};
+    let lastIntentFromState: string | undefined = undefined;
 
     if (resolvedClientId && sessionId) {
       try {
@@ -256,11 +334,55 @@ export async function runGptReceptionistFlow(
         });
 
         handoffState = ((conv.state as any)?.handoff ?? {}) as HandoffCS;
+        appointmentState = ((conv.state as any)?.appointment ?? {}) as AppointmentCS;
+        lastIntentFromState = (conv.state as any)?.lastIntent;
+
       } catch (err) {
         console.warn("[BRAIN] ensureConversationState failed", err);
       }
     }
+    
+        // Offener Appointment-Dialog -> kurze Follow-ups direkt weiter im Appointment-Flow
+    if (
+      resolvedClientId &&
+      shouldBypassBrainToAppointment({
+        text,
+        lastIntent: lastIntentFromState,
+        appointmentState,
+        handoffStage: handoffState?.stage ?? null,
+      })
+    ) {
+      const safeOwnerUserId = ownerUserId ?? "";
 
+      const out: any = await runAppointmentFlow({
+        supabase,
+        clientId: resolvedClientId,
+        ownerUserId: safeOwnerUserId,
+        timezone,
+        staffEnabled,
+        message: text,
+        sessionId,
+        brainIntent: lastIntentFromState ?? "create_appointment",
+      });
+
+      let reply =
+        "Alles klar. Womit kann ich Ihnen weiterhelfen?";
+
+      if (out?.status === "need_info" && out?.question) reply = out.question;
+      else if (out?.message) reply = out.message;
+      else if (out?.reply) reply = out.reply;
+      else if (out?.phrase) reply = out.phrase;
+
+      return {
+        success: true,
+        intent: lastIntentFromState ?? "create_appointment",
+        confidence: 1,
+        end_call: typeof out?.end_call === "boolean" ? Boolean(out.end_call) : false,
+        reply,
+        ...out,
+      };
+    }
+    
     // Aktiver Handoff-Dialog → direkt in FAQ/Handoff-Flow
     if (resolvedClientId && handoffState?.stage) {
       const out: any = await runFaqFlow({
