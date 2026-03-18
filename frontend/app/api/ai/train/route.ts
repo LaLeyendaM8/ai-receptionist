@@ -67,13 +67,13 @@ export async function POST(req: Request) {
 
     if (hours && hours.length > 0) {
       const weekdayNames = [
+        "Sonntag",
         "Montag",
         "Dienstag",
         "Mittwoch",
         "Donnerstag",
         "Freitag",
         "Samstag",
-        "Sonntag",
       ];
       lines.push("Öffnungszeiten:");
       for (const h of hours) {
