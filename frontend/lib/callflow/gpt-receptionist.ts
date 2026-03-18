@@ -39,7 +39,7 @@ async function loadClientLite(
 
   const { data, error } = await supabase
     .from("clients")
-    .select("id, business_name, ai_profile")
+    .select("id, name, ai_profile")
     .eq("id", clientId)
     .maybeSingle();
 

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type FaqService = {
   id: string;
-  name: string;
+  title: string;
   price?: number | null;
   duration_minutes?: number | null;
   active?: boolean | null;
@@ -42,13 +42,13 @@ export async function buildFaqContext(
     await Promise.all([
       supabase
         .from("clients")
-        .select("id, business_name, phone, email, address")
+        .select("id, name, phone, email, address")
         .eq("id", clientId)
         .maybeSingle(),
 
       supabase
         .from("services")
-        .select("id, name, price, duration_minutes, active")
+        .select("id, title, price_cents, duration_min, active")
         .eq("client_id", clientId)
         .eq("active", true),
 

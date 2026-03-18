@@ -1,6 +1,6 @@
 export type ServiceCandidate = {
   id: string;
-  name: string;
+  title: string;
   duration_minutes?: number | null;
   price?: number | null;
 };
@@ -28,7 +28,7 @@ function tokenize(text: string) {
 
 function scoreService(text: string, service: ServiceCandidate) {
   const input = normalize(text);
-  const serviceName = normalize(service.name);
+  const serviceName = normalize(service.title);
 
   if (!input || !serviceName) return 0;
 

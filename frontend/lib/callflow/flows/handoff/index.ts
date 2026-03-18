@@ -43,7 +43,6 @@ async function createAndNotifyHandoff(args: {
       question: handoff.question ?? "",
       customer_name: handoff.customerName ?? null,
       customer_phone: handoff.customerPhone ?? fromNumber ?? null,
-      kind: handoff.choice ?? "message",
       status: "open",
       source: "phone_ai",
     })

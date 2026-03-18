@@ -60,7 +60,7 @@ async function loadClientServices(
 ): Promise<ServiceCandidate[]> {
   const { data, error } = await supabase
     .from("services")
-    .select("id, name, duration_minutes, price")
+    .select("id, title, duration_min, price_cents")
     .eq("client_id", clientId)
     .eq("active", true);
 
@@ -125,7 +125,7 @@ export async function handleCreateAppointment(
 
     const nextAppointment = patchAppointmentState(currentAppointment, {
       serviceId: serviceResult.value.id,
-      serviceName: serviceResult.value.name,
+      serviceName: serviceResult.value.title,
       confirmed: false,
     });
 
