@@ -101,7 +101,7 @@ export async function handleAvailabilityAppointment(
   }
 
   const matchedService = services.find((s) => s.id === appointment.serviceId);
-  const durationMin = Number(matchedService?.duration_minutes ?? 30);
+  const durationMin = Number(matchedService?.duration_min ?? 30);
   const capacity = await getParallelCapacity(supabase, clientId);
   const overlapCache = new Map<string, ApptInterval[]>();
 

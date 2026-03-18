@@ -3,8 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type FaqService = {
   id: string;
   title: string;
-  price?: number | null;
-  duration_minutes?: number | null;
+  price_cents?: number | null;
+  duration_min?: number | null;
   active?: boolean | null;
 };
 
@@ -24,7 +24,7 @@ export type FaqEntry = {
 export type FaqContext = {
   client: {
     id: string;
-    business_name?: string | null;
+    title?: string | null;
     phone?: string | null;
     email?: string | null;
     address?: string | null;

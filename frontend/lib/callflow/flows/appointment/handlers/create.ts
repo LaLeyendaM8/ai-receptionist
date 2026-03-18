@@ -313,7 +313,7 @@ export async function handleCreateAppointment(
     }
 
     const matchedService = services.find((s) => s.id === currentAppointment.serviceId);
-    const durationMin = Number(matchedService?.duration_minutes ?? 30);
+    const durationMin = Number(matchedService?.duration_min ?? 30);
     const slot = toUTCSlot({
       date: currentAppointment.date,
       time: currentAppointment.time,

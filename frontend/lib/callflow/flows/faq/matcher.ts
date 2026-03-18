@@ -70,7 +70,7 @@ function formatBusinessHours(rows: FaqBusinessHours[]) {
 
 function scoreService(text: string, service: FaqService) {
   const input = normalize(text);
-  const name = normalize(service.name);
+  const name = normalize(service.title);
 
   if (!input || !name) return 0;
   if (input.includes(name)) return 1;
@@ -211,27 +211,27 @@ export function matchFaq(text: string, ctx: FaqContext): FaqMatchResult {
   const bestService = findBestService(text, ctx.services);
 
   if (bestService && looksLikePrice(text)) {
-    const price = bestService.service.price;
+    const price = bestService.service.price_cents;
     return {
       matched: true,
       type: "service_price",
       answer:
         price != null
-          ? `${bestService.service.name} kostet ${price} Euro.`
-          : `Für ${bestService.service.name} ist aktuell kein Preis hinterlegt.`,
+          ? `${bestService.service.title} kostet ${price / 100} Euro.`
+          : `Für ${bestService.service.title} ist aktuell kein Preis hinterlegt.`,
       confidence: Math.min(0.98, bestService.score),
     };
   }
 
   if (bestService && looksLikeDuration(text)) {
-    const duration = bestService.service.duration_minutes;
+    const duration = bestService.service.duration_min;
     return {
       matched: true,
       type: "service_duration",
       answer:
         duration != null
-          ? `${bestService.service.name} dauert ungefähr ${duration} Minuten.`
-          : `Für ${bestService.service.name} ist aktuell keine Dauer hinterlegt.`,
+          ? `${bestService.service.title} dauert ungefähr ${duration} Minuten.`
+          : `Für ${bestService.service.title} ist aktuell keine Dauer hinterlegt.`,
       confidence: Math.min(0.98, bestService.score),
     };
   }
@@ -240,7 +240,7 @@ export function matchFaq(text: string, ctx: FaqContext): FaqMatchResult {
     return {
       matched: true,
       type: "service_exists",
-      answer: `Ja, ${bestService.service.name} bieten wir an.`,
+      answer: `Ja, ${bestService.service.title} bieten wir an.`,
       confidence: Math.min(0.95, bestService.score),
     };
   }

@@ -1,8 +1,8 @@
 export type ServiceCandidate = {
   id: string;
   title: string;
-  duration_minutes?: number | null;
-  price?: number | null;
+  duration_min?: number | null;
+  price_cents?: number | null;
 };
 
 export type ServiceParseResult = {

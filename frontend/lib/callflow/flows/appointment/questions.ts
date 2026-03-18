@@ -55,7 +55,7 @@ export function askForClarifiedService(services?: ServiceCandidate[]) {
   if (services?.length) {
     const preview = services
       .slice(0, 3)
-      .map((s) => s.name)
+      .map((s) => s.title)
       .join(", ");
     return `Ich habe die Leistung noch nicht ganz verstanden. Verfügbare Leistungen wären zum Beispiel ${preview}. Welche möchten Sie buchen?`;
   }
