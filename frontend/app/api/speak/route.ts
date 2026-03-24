@@ -15,30 +15,25 @@ function clampText(t: unknown) {
 }
 
 function normalizeForSpeech(input: string) {
-  return input
-    // Bereiche wie 09:00–18:00 / 09:00-18:00
-    .replace(/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/g, (_, h1, m1, h2, m2) => {
-      const left =
-        m1 === "00" ? `${parseInt(h1, 10)} Uhr` : `${parseInt(h1, 10)} Uhr ${parseInt(m1, 10)}`;
-      const right =
-        m2 === "00" ? `${parseInt(h2, 10)} Uhr` : `${parseInt(h2, 10)} Uhr ${parseInt(m2, 10)}`;
-      return `${left} bis ${right}`;
-    })
+  let text = input ?? "";
 
-    // Geldbeträge wie 30.00 € / 30,00 €
-    .replace(/(\d+)[\.,]00\s*€/g, "$1 Euro")
-    .replace(/(\d+)\s*€/g, "$1 Euro")
+  // Uhrzeiten wie 18:00
+  text = text.replace(/\b(\d{1,2}):00\b/g, (_, h) => `${parseInt(h, 10)} Uhr`);
 
-    // Uhrzeiten wie 18:00
-    .replace(/\b(\d{1,2}):00\b/g, (_, h) => `${parseInt(h, 10)} Uhr`)
+  // Uhrzeiten wie 18:30
+  text = text.replace(/\b(\d{1,2}):(\d{2})\b/g, (_, h, m) => {
+    const hour = parseInt(h, 10);
+    const minute = parseInt(m, 10);
+    if (minute === 0) return `${hour} Uhr`;
+    return `${hour} Uhr ${minute}`;
+  });
 
-    // Uhrzeiten wie 18:30
-    .replace(/\b(\d{1,2}):(\d{2})\b/g, (_, h, m) => {
-      return `${parseInt(h, 10)} Uhr ${parseInt(m, 10)}`;
-    })
+  // Geldbeträge
+  text = text.replace(/(\d+)[\.,]00\s*€/g, "$1 Euro");
+  text = text.replace(/(\d+)\s*€/g, "$1 Euro");
+  text = text.replace(/€/g, "Euro");
 
-    // einzelnes Euro-Zeichen als fallback
-    .replace(/€/g, "Euro");
+  return text.replace(/\s+/g, " ").trim();
 }
 
 async function synth(text: string, voiceId?: string) {
@@ -50,7 +45,7 @@ async function synth(text: string, voiceId?: string) {
       ? DEFAULT_VOICE_ID
       : voiceId || DEFAULT_VOICE_ID;
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${id}?optimize_streaming_latency=2`;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${id}`;
 
   const resp = await fetch(url, {
     method: "POST",
@@ -61,8 +56,11 @@ async function synth(text: string, voiceId?: string) {
     },
     body: JSON.stringify({
       text,
-      model_id: "eleven_turbo_v2_5",
-      voice_settings: { stability: 0.25, similarity_boost: 0.85 , style: 0.3, use_speaker_boost: true },
+      model_id: "eleven_flash_v2_5",
+      language_code: "de",
+      apply_text_normalization: "on",
+      voice_settings: { stability: 0.65, similarity_boost: 0.8 , style: 0.05, use_speaker_boost: true },
+      seed: 42,
     }),
   });
 
@@ -73,6 +71,8 @@ async function synth(text: string, voiceId?: string) {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+    const skipNormalization = searchParams.get("skip_normalization") === "1";
+
     let text = "";
 
     if (process.env.NODE_ENV === "production") {
@@ -92,9 +92,15 @@ export async function GET(req: Request) {
         });
       }
 
-      text = normalizeForSpeech(clampText(verifiedText));
+      text = clampText(verifiedText);
+      if (!skipNormalization) {
+        text = normalizeForSpeech(text);
+      }
     } else {
-      text = normalizeForSpeech(clampText(searchParams.get("text")));
+      text = clampText(searchParams.get("text"));
+      if (!skipNormalization) {
+        text = normalizeForSpeech(text);
+      }
     }
 
     const voiceId = searchParams.get("voiceId") || undefined;

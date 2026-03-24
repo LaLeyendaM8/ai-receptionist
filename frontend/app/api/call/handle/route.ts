@@ -44,7 +44,12 @@ async function parseForm(req: Request): Promise<Record<string, string>> {
   return Object.fromEntries(new URLSearchParams(raw));
 }
 
-function sayWithTTS(target: any, text: string, base?: string) {
+function sayWithTTS(
+  target: any,
+  text: string,
+  base?: string,
+  opts?: { skipNormalization?: boolean }
+) {
   if (!text) return;
 
   if (!base || !TTS_ENABLED) {
@@ -57,15 +62,19 @@ function sayWithTTS(target: any, text: string, base?: string) {
   const u = new URL("/api/speak", base);
   u.searchParams.set("token", token);
 
+  if (opts?.skipNormalization) {
+    u.searchParams.set("skip_normalization", "1");
+  }
+
   target.play(u.toString());
 }
 
 function buildGreeting(client: ClientProfile | null) {
   const companyName = client?.name?.trim();
   if (companyName) {
-    return `Willkommen bei ${companyName}. Ich bin die virtuelle Rezeptionistin. Möchten Sie einen Termin buchen oder haben Sie eine kurze Frage – zum Beispiel zu Öffnungszeiten oder Preisen?`;
+    return `Willkommen bei ${companyName}. Ich bin die virtuelle Rezeptionistin. Möchten Sie einen Termin buchen oder haben Sie eine kurze Frage, zum Beispiel zu Öffnungszeiten oder Preisen?`;
   }
-  return "Willkommen bei ReceptaAI. Ich bin die virtuelle Rezeptionistin. Möchten Sie einen Termin buchen oder haben Sie eine kurze Frage – zum Beispiel zu Öffnungszeiten oder Preisen?";
+  return "Willkommen bei ReceptaAI. Ich bin die virtuelle Rezeptionistin. Möchten Sie einen Termin buchen oder haben Sie eine kurze Frage, zum Beispiel zu Öffnungszeiten oder Preisen?";
 }
 
 async function loadClientProfile(
@@ -239,7 +248,9 @@ export async function POST(req: Request) {
         actionOnEmptyResult: true,
       });
 
-      sayWithTTS(g, buildGreeting(clientProfile), base);
+      sayWithTTS(g, buildGreeting(clientProfile), base, {
+  skipNormalization: true,
+});
 
       return new Response(vr.toString(), {
         headers: { "Content-Type": "text/xml" },
