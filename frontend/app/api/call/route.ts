@@ -5,6 +5,8 @@ export const dynamic = "force-dynamic";
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { NextResponse, type NextRequest } from "next/server";
 import { validateRequest } from "twilio";
+import { createServiceClient } from "@/lib/supabaseClients";
+import { ensureCallLogStarted } from "@/lib/callflow/call-log";
 
 
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN as string;
@@ -33,7 +35,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  
+  const supabase = createServiceClient();
   const isProd = process.env.NODE_ENV === "production";
 
 if (isProd && !process.env.TWILIO_AUTH_TOKEN) {
@@ -47,12 +49,38 @@ if (isProd && !process.env.TWILIO_AUTH_TOKEN) {
   const body: Record<string, any> = {};
   for (const [k, v] of form.entries()) body[k] = String(v);
   const base = getBaseUrl(req);
+  const calledNumber = body.To || body.Called || body.ToFormatted || "";
+  const callSid = body.CallSid || "";
+  const fromNumber = body.From || "";
   
   // In Prod signaturprüfen (lokal off)
   if (process.env.NODE_ENV === "production") {
     const valid = verifyTwilioSignature(req, body);
     if (!valid) {
       return NextResponse.json({ error: "Invalid Twilio signature" }, { status: 403 });
+    }
+  }
+
+  if (callSid && calledNumber) {
+    try {
+      const { data: client } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("twilio_number", calledNumber)
+        .maybeSingle();
+
+      if (client?.id) {
+        await ensureCallLogStarted({
+          supabase,
+          clientId: client.id,
+          callSid,
+          fromNumber,
+          toNumber: calledNumber,
+          language: "de",
+        });
+      }
+    } catch (error) {
+      console.warn("[CALL] ensureCallLogStarted failed", error);
     }
   }
 

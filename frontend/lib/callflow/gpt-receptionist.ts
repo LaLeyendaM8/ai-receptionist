@@ -27,7 +27,7 @@ export type SmartFallbackResult = {
 
 type ClientLite = {
   id: string;
-  business_name?: string | null;
+  name?: string | null;
   ai_profile?: string | null;
 };
 
@@ -121,7 +121,7 @@ export async function runGptReceptionistFlow(
         {
           role: "system",
           content: buildSystemPrompt({
-            businessName: client?.business_name ?? null,
+            businessName: client?.name ?? null,
             aiProfile: client?.ai_profile ?? null,
           }),
         },

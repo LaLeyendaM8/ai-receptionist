@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ConversationStateJson } from "@/lib/callflow/types";
-import { handleAppointmentConfirmation } from "@/lib/callflow/flows/appointment/handlers/confirm";
 import { handleAvailabilityAppointment } from "@/lib/callflow/flows/appointment/handlers/availability";
 import { handleCreateAppointment } from "@/lib/callflow/flows/appointment/handlers/create";
 import { handleCancelAppointment } from "@/lib/callflow/flows/appointment/handlers/cancel";
@@ -11,6 +10,7 @@ export type AppointmentFlowResult = {
   reply: string;
   statePatch: ConversationStateJson;
   useLegacy: boolean;
+  appointmentId?: string;
   legacyIntent?:
     | "create_appointment"
     | "availability"
@@ -27,6 +27,7 @@ type HandleAppointmentFlowArgs = {
   text: string;
   state: ConversationStateJson;
   ownerUserId?: string | null;
+  fromNumber?: string | null;
 };
 
 function normalize(text: string) {
@@ -75,21 +76,11 @@ function looksLikeInfoIntent(text: string) {
 export async function handleAppointmentFlow(
   args: HandleAppointmentFlowArgs
 ): Promise<AppointmentFlowResult> {
-  const { supabase, clientId, timezone, text, state, ownerUserId } = args;
+  const { supabase, clientId, timezone, text, state, ownerUserId, fromNumber } = args;
 
   const lastIntent = state.lastIntent;
   const currentStep = state.step;
   const appointment = state.appointment ?? {};
-
-  if (currentStep === "confirm" || lastIntent === "appointment_confirm") {
-    const result = handleAppointmentConfirmation({ text, state });
-
-    return {
-      reply: result.reply,
-      statePatch: result.statePatch,
-      useLegacy: false,
-    };
-  }
 
   if (lastIntent === "cancel_appointment" || appointment.mode === "cancel" || looksLikeCancelIntent(text)) {
     const result = await handleCancelAppointment({
@@ -172,11 +163,13 @@ export async function handleAppointmentFlow(
     text,
     state,
     ownerUserId,
+    callerPhone: fromNumber,
   });
 
   return {
     reply: result.reply,
     statePatch: result.statePatch,
     useLegacy: false,
+    appointmentId: result.appointmentId,
   };
 }

@@ -27,6 +27,14 @@ function getResultBadgeClasses(status: string | null | undefined) {
   return "bg-slate-100 text-slate-700";
 }
 
+function getCallDateTime(c: any) {
+  return c.started_at ?? c.created_at ?? null;
+}
+
+function getCallResult(c: any) {
+  return c.status ?? c.outcome ?? "Unbekannt";
+}
+
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "-";
   const date = new Date(value);
@@ -73,7 +81,7 @@ export default async function CallsPage() {
     .from("calls")
     .select("*")
     .eq("client_id", clientId)
-    .order("created_at", { ascending: false })
+    .order("started_at", { ascending: false })
     .limit(50);
 
   const rows = calls ?? [];
@@ -158,7 +166,7 @@ export default async function CallsPage() {
             className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC]"
           >
             <td className="px-4 py-3 text-sm text-[#1E293B] align-top">
-              {formatDateTime(c.created_at)}
+              {formatDateTime(getCallDateTime(c))}
             </td>
 
             <td className="px-4 py-3 text-sm text-[#1E293B] align-top">
@@ -172,10 +180,10 @@ export default async function CallsPage() {
               <span
                 className={
                   "inline-flex rounded-full px-3 py-1 text-xs font-medium " +
-                  getResultBadgeClasses(c.status)
+                  getResultBadgeClasses(getCallResult(c))
                 }
               >
-                {c.status ?? "Unbekannt"}
+                {getCallResult(c)}
               </span>
             </td>
 
@@ -222,17 +230,17 @@ export default async function CallsPage() {
             <div className="mt-0.5 text-xs text-[#64748B]">{c.from_number ?? "-"}</div>
 
             <div className="mt-2 text-xs text-[#64748B]">
-              {formatDateTime(c.created_at)} • {formatDuration(c.duration_seconds)}
+              {formatDateTime(getCallDateTime(c))} • {formatDuration(c.duration_seconds)}
             </div>
           </div>
 
           <span
             className={
               "inline-flex h-fit rounded-full px-3 py-1 text-xs font-medium " +
-              getResultBadgeClasses(c.status)
+              getResultBadgeClasses(getCallResult(c))
             }
           >
-            {c.status ?? "Unbekannt"}
+            {getCallResult(c)}
           </span>
         </div>
 

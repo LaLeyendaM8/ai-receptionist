@@ -13,6 +13,7 @@ import {
   patchConversationState,
 } from "@/lib/callflow/conversation-state";
 import { runCallflowOrchestrator } from "@/lib/callflow/orchestrator";
+import { appendCallTurn, ensureCallLogStarted } from "@/lib/callflow/call-log";
 
 // ---------------------------------------------------------------------------
 // Konfiguration / Helper
@@ -167,6 +168,21 @@ export async function POST(req: Request) {
     const toNumber = params.To || params.Called || params.ToFormatted || "";
 
     const clientProfile = await loadClientProfile(supabase, params);
+
+    if (clientProfile?.id && callSid) {
+      try {
+        await ensureCallLogStarted({
+          supabase,
+          clientId: clientProfile.id,
+          callSid,
+          fromNumber,
+          toNumber,
+          language: "de",
+        });
+      } catch (e) {
+        console.warn("[HANDLE] ensureCallLogStarted failed", e);
+      }
+    }
 
     let conv: any = null;
     if (clientProfile?.id && sessionId) {
@@ -372,6 +388,23 @@ export async function POST(req: Request) {
     // Echte Weiterleitung
     // ------------------------------------------------------------
     if (out?.success && out?.status === "transfer_requested") {
+      if (clientProfile?.id && callSid) {
+        try {
+          await appendCallTurn({
+            supabase,
+            clientId: clientProfile.id,
+            callSid,
+            outcomeHint: "transferred",
+            extraMeta: {
+              last_intent: out.intent ?? null,
+              transfer_requested: true,
+            },
+          });
+        } catch (e) {
+          console.warn("[HANDLE] appendCallTurn transfer failed", e);
+        }
+      }
+
       const forwardTo = clientProfile?.phone?.trim();
 
       if (forwardTo) {
@@ -428,6 +461,31 @@ export async function POST(req: Request) {
     }
 
     // Antwort ausspielen
+    if (clientProfile?.id && callSid) {
+      try {
+        const outcomeHint =
+          out?.intent === "handoff"
+            ? "voicemail"
+            : out?.intent === "appointment_confirm"
+            ? "booked"
+            : "resolved";
+
+        await appendCallTurn({
+          supabase,
+          clientId: clientProfile.id,
+          callSid,
+          outcomeHint,
+          bookingId: out?.appointmentId ?? null,
+          extraMeta: {
+            last_intent: out?.intent ?? null,
+            end_call: endCall,
+          },
+        });
+      } catch (e) {
+        console.warn("[HANDLE] appendCallTurn failed", e);
+      }
+    }
+
     sayWithTTS(vr, reply, base);
 
     if (endCall) {

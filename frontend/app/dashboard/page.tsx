@@ -16,8 +16,10 @@ export const dynamic = "force-dynamic";
 
 type CallRow = {
   id: string;
-  created_at: string;
-  status: string | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  status?: string | null;
+  outcome?: string | null;
   from_number: string | null;
   language?: string | null;
   duration_seconds?: number | null;
@@ -28,6 +30,16 @@ type AppointmentRow = {
   start_at: string;
   status: string | null;
   title?: string | null;
+};
+
+type BillingUsage = {
+  includedMinutes: number;
+  usedMinutes: number;
+  remainingMinutes: number;
+  billableMinutes: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  plan: string | null;
 };
 
 async function getDashboardData(userId: string) {
@@ -46,13 +58,17 @@ async function getDashboardData(userId: string) {
 
   const clientId = client.id;
 
-  const [{ data: calls }, { data: appointments }, { count: openHandoffs }] =
-    await Promise.all([
+  const [
+    { data: calls },
+    { data: appointments },
+    { count: openHandoffs },
+    { data: subscription },
+  ] = await Promise.all([
       supabase
         .from("calls")
         .select("*")
         .eq("client_id", clientId)
-        .order("created_at", { ascending: false })
+        .order("started_at", { ascending: false })
         .limit(50),
 
       supabase
@@ -68,17 +84,67 @@ async function getDashboardData(userId: string) {
         .select("id", { count: "exact", head: true })
         .eq("client_id", clientId)
         .eq("status", "open"),
+
+      supabase
+        .from("stripe_subscriptions")
+        .select("plan, included_minutes, current_period_start, current_period_end, status")
+        .eq("client_id", clientId)
+        .in("status", ["active", "trialing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
+
+  let billingUsage: BillingUsage | null = null;
+
+  if (subscription) {
+    const periodStart = subscription.current_period_start ?? null;
+    const periodEnd = subscription.current_period_end ?? null;
+    const includedMinutes = Number(subscription.included_minutes ?? 0);
+
+    let usedMinutes = 0;
+    let billableMinutes = 0;
+
+    if (periodStart && periodEnd) {
+      const { data: usageRows } = await supabase
+        .from("call_usage_events")
+        .select("billed_minutes, billable_minutes")
+        .eq("client_id", clientId)
+        .gte("call_ended_at", periodStart)
+        .lt("call_ended_at", periodEnd);
+
+      usedMinutes = (usageRows ?? []).reduce(
+        (sum, row: any) => sum + Number(row.billed_minutes ?? 0),
+        0
+      );
+      billableMinutes = (usageRows ?? []).reduce(
+        (sum, row: any) => sum + Number(row.billable_minutes ?? 0),
+        0
+      );
+    }
+
+    billingUsage = {
+      includedMinutes,
+      usedMinutes,
+      remainingMinutes: Math.max(includedMinutes - usedMinutes, 0),
+      billableMinutes,
+      periodStart,
+      periodEnd,
+      plan: subscription.plan ?? null,
+    };
+  }
 
   return {
     calls: (calls ?? []) as CallRow[],
     appointments: (appointments ?? []) as AppointmentRow[],
     openHandoffs: openHandoffs ?? 0,
+    billingUsage,
   };
 }
 
 function formatRelative(dateString: string) {
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "-";
   const diffMs = Date.now() - date.getTime();
   const diffMinutes = Math.round(diffMs / 60000);
 
@@ -92,11 +158,40 @@ function formatRelative(dateString: string) {
   return `vor ${diffDays} Tagen`;
 }
 
+function getCallDate(call: CallRow) {
+  return call.started_at ?? call.created_at ?? "";
+}
+
+function getCallStatus(call: CallRow) {
+  return call.status ?? call.outcome ?? "Unbekannt";
+}
+
 function formatDuration(secondsTotal: number | null | undefined) {
   const seconds = secondsTotal ?? 0;
   const minutes = Math.floor(seconds / 60);
   const restSeconds = seconds % 60;
   return `${minutes}:${String(restSeconds).padStart(2, "0")} min`;
+}
+
+function formatDateLabel(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatPlanLabel(plan: string | null | undefined) {
+  if (!plan) return "Aktiver Tarif";
+
+  return plan
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 type StatCardProps = {
@@ -164,6 +259,7 @@ export default async function DashboardPage() {
   const calls = data?.calls ?? [];
   const appointments = data?.appointments ?? [];
   const openHandoffs = data?.openHandoffs ?? 0;
+  const billingUsage = data?.billingUsage ?? null;
 
   // Zeitraum: "heute"
   const now = new Date();
@@ -176,7 +272,7 @@ export default async function DashboardPage() {
 
   // Calls heute
   const callsToday = calls.filter((c) => {
-    const d = new Date(c.created_at);
+    const d = new Date(getCallDate(c));
     return d >= startOfToday && d < endOfToday;
   }).length;
 
@@ -187,9 +283,10 @@ export default async function DashboardPage() {
   }).length;
 
   // Antwortquote (MVP: missed = nicht beantwortet)
-  const answeredCalls = calls.filter(
-    (c) => c.status && c.status.toLowerCase() !== "missed"
-  );
+  const answeredCalls = calls.filter((c) => {
+    const status = getCallStatus(c).toLowerCase();
+    return status !== "missed" && status !== "no_answer";
+  });
   const responseRate =
     calls.length > 0
       ? Math.round((answeredCalls.length / calls.length) * 1000) / 10
@@ -257,6 +354,94 @@ export default async function DashboardPage() {
         />
       </div>
 
+      <section className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-medium text-[#1E293B]">Nutzung & Abrechnung</h2>
+            <p className="mt-1 text-xs text-[#64748B]">
+              Minutenverbrauch im aktuellen Abrechnungszeitraum.
+            </p>
+          </div>
+
+          {billingUsage?.plan && (
+            <span className="inline-flex items-center rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-medium text-[#2563EB]">
+              {formatPlanLabel(billingUsage.plan)}
+            </span>
+          )}
+        </div>
+
+        {!billingUsage ? (
+          <div className="mt-4 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-4 text-sm text-[#64748B]">
+            Noch keine aktiven Billing-Daten verfuegbar.
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl bg-[#F8FAFC] p-4">
+                <div className="text-xs uppercase tracking-wide text-[#64748B]">Inklusive Minuten</div>
+                <div className="mt-2 text-2xl font-semibold text-[#1E293B]">
+                  {billingUsage.includedMinutes}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#F8FAFC] p-4">
+                <div className="text-xs uppercase tracking-wide text-[#64748B]">Verbraucht</div>
+                <div className="mt-2 text-2xl font-semibold text-[#1E293B]">
+                  {billingUsage.usedMinutes}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#F8FAFC] p-4">
+                <div className="text-xs uppercase tracking-wide text-[#64748B]">Noch frei</div>
+                <div className="mt-2 text-2xl font-semibold text-emerald-600">
+                  {billingUsage.remainingMinutes}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#F8FAFC] p-4">
+                <div className="text-xs uppercase tracking-wide text-[#64748B]">Zusatzminuten</div>
+                <div className="mt-2 text-2xl font-semibold text-amber-600">
+                  {billingUsage.billableMinutes}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-center justify-between text-xs text-[#64748B]">
+                <span>Zeitraum</span>
+                <span>
+                  {formatDateLabel(billingUsage.periodStart)} bis {formatDateLabel(billingUsage.periodEnd)}
+                </span>
+              </div>
+
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E2E8F0]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#3B82F6] to-[#10B981]"
+                  style={{
+                    width: `${
+                      billingUsage.includedMinutes > 0
+                        ? Math.min((billingUsage.usedMinutes / billingUsage.includedMinutes) * 100, 100)
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+
+              <div className="mt-2 flex items-center justify-between text-[11px] text-[#64748B]">
+                <span>{billingUsage.usedMinutes} von {billingUsage.includedMinutes} Minuten genutzt</span>
+                <span>
+                  {billingUsage.includedMinutes > 0
+                    ? `${Math.round(
+                        Math.min((billingUsage.usedMinutes / billingUsage.includedMinutes) * 100, 100)
+                      )}%`
+                    : "0%"}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+
       {/* Anrufe (7 Tage) – Chart-Card (Platzhalter-Chart) */}
       <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
@@ -306,19 +491,20 @@ export default async function DashboardPage() {
               <span
                 className={[
                   "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
-                  call.status?.toLowerCase() === "missed"
+                  getCallStatus(call).toLowerCase() === "missed" ||
+                  getCallStatus(call).toLowerCase() === "no_answer"
                     ? "bg-rose-50 text-rose-600"
-                    : call.status?.toLowerCase() === "voicemail"
+                    : getCallStatus(call).toLowerCase() === "voicemail"
                     ? "bg-slate-800 text-slate-50"
                     : "bg-emerald-50 text-emerald-600",
                 ].join(" ")}
               >
-                {call.status ?? "Unbekannt"}
+                {getCallStatus(call)}
               </span>
             </td>
 
             <td className="py-3 pr-4 text-xs text-[#64748B]">
-              {formatRelative(call.created_at)}
+              {formatRelative(getCallDate(call))}
             </td>
 
             <td className="py-3 pr-4 text-xs text-[#1E293B]">
@@ -345,10 +531,10 @@ export default async function DashboardPage() {
     )}
 
     {recentCalls.map((call) => {
-      const status = (call.status ?? "Unbekannt").toLowerCase();
+      const status = getCallStatus(call).toLowerCase();
 
       const statusClass =
-        status === "missed"
+        status === "missed" || status === "no_answer"
           ? "bg-rose-50 text-rose-600"
           : status === "voicemail"
           ? "bg-slate-800 text-slate-50"
@@ -365,7 +551,7 @@ export default async function DashboardPage() {
                 {call.from_number ?? "Unbekannt"}
               </div>
               <div className="mt-1 text-xs text-[#64748B]">
-                {formatRelative(call.created_at)} •{" "}
+                {formatRelative(getCallDate(call))} •{" "}
                 {formatDuration(call.duration_seconds)}
               </div>
             </div>
@@ -376,7 +562,7 @@ export default async function DashboardPage() {
                 statusClass,
               ].join(" ")}
             >
-              {call.status ?? "Unbekannt"}
+              {getCallStatus(call)}
             </span>
           </div>
 

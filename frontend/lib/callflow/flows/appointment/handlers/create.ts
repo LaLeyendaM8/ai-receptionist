@@ -46,12 +46,14 @@ type HandleCreateAppointmentArgs = {
   text: string;
   state: ConversationStateJson;
   ownerUserId?: string | null;
+  callerPhone?: string | null;
 };
 
 export type AppointmentCreateHandlerResult = {
   reply: string;
   statePatch: ConversationStateJson;
   completed: boolean;
+  appointmentId?: string;
 };
 
 async function loadClientServices(
@@ -94,7 +96,7 @@ function toUTCSlot(args: {
 export async function handleCreateAppointment(
   args: HandleCreateAppointmentArgs
 ): Promise<AppointmentCreateHandlerResult> {
-  const { supabase, clientId, timezone, text, state, ownerUserId } = args;
+  const { supabase, clientId, timezone, text, state, ownerUserId, callerPhone } = args;
 
   const currentAppointment: AppointmentState = {
     ...(state.appointment ?? {}),
@@ -372,7 +374,7 @@ export async function handleCreateAppointment(
       startAt: slot.startAt,
       endAt: slot.endAt,
       customerName: currentAppointment.customerName,
-      customerPhone: currentAppointment.phone ?? null,
+      customerPhone: currentAppointment.phone ?? callerPhone ?? null,
       notes: "",
       staffId: currentAppointment.staffId ?? null,
     });
@@ -447,6 +449,7 @@ export async function handleCreateAppointment(
         date: currentAppointment.date,
         time: currentAppointment.time,
       }),
+      appointmentId: appointment.id,
       statePatch: {
         flow: "idle",
         step: "done",

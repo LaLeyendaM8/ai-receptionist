@@ -92,7 +92,7 @@ export async function runCallflowOrchestrator(
   input: OrchestratorInput
 ): Promise<OrchestratorResult | OrchestratorFailure> {
   try {
-    const {
+  const {
       supabase,
       text,
       fromNumber,
@@ -174,6 +174,7 @@ if (route === "appointment" && ctx.clientId) {
     text,
     state,
     ownerUserId: ctx.ownerUserId,
+    fromNumber,
   });
 
   if (conv?.id) {
@@ -194,6 +195,7 @@ if (route === "appointment" && ctx.clientId) {
     confidence: 0.92,
     end_call: false,
     reply: result.reply,
+    appointmentId: result.appointmentId,
   };
 }
 

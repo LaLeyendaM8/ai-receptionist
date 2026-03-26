@@ -6,6 +6,7 @@ import { validateRequest } from "twilio";
 import { getBaseUrl } from "@/lib/getBaseUrl";
 import { createServiceClient } from "@/lib/supabaseClients";
 import { reportCallUsage } from "@/lib/stripe/stripeUsage";
+import { finalizeCallLog } from "@/lib/callflow/call-log";
 
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN as string;
 
@@ -100,15 +101,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 0-Sekunden-Calls nicht abrechnen
-    if (!durationSeconds || durationSeconds <= 0) {
-      return NextResponse.json({
-        ok: true,
-        skipped: true,
-        reason: "no_billable_duration",
-      });
-    }
-
     if (!calledNumber) {
       console.warn("[CALL STATUS] missing called number");
       return NextResponse.json({
@@ -135,17 +127,48 @@ export async function POST(req: NextRequest) {
       params.Timestamp || null; // optional; Twilio liefert hier nicht immer ideal verwertbare ISO-Zeit
     const endedAt = new Date().toISOString();
 
-    const result = await reportCallUsage({
-      clientId: client.id,
-      twilioCallSid: callSid,
-      durationSeconds,
-      callStartedAt: startedAt,
-      callEndedAt: endedAt,
-    });
+    let result: unknown = null;
+    let usageError: string | null = null;
+
+    if (durationSeconds > 0) {
+      try {
+        result = await reportCallUsage({
+          clientId: client.id,
+          twilioCallSid: callSid,
+          durationSeconds,
+          callStartedAt: startedAt,
+          callEndedAt: endedAt,
+        });
+      } catch (billingError: any) {
+        usageError = billingError?.message ?? String(billingError);
+        console.warn("[CALL STATUS] reportCallUsage failed", billingError);
+      }
+    }
+
+    try {
+      await finalizeCallLog({
+        supabase,
+        clientId: client.id,
+        callSid,
+        durationSeconds,
+        outcome: durationSeconds > 0 ? null : "no_answer",
+        extraMeta: {
+          call_status: callStatus,
+          call_started_at_raw: startedAt,
+          call_ended_at: endedAt,
+          billing_usage_error: usageError,
+        },
+      });
+    } catch (logError) {
+      console.warn("[CALL STATUS] finalizeCallLog failed", logError);
+    }
 
     return NextResponse.json({
       ok: true,
-      reported: true,
+      reported: durationSeconds > 0 && !usageError,
+      skipped: durationSeconds <= 0,
+      reason: durationSeconds <= 0 ? "no_billable_duration" : null,
+      usage_error: usageError,
       result,
     });
   } catch (error: any) {

@@ -101,7 +101,7 @@ export async function reportCallUsage(params: {
       twilio_call_sid: twilioCallSid,
       duration_seconds: durationSeconds,
       billed_minutes: billedMinutes,
-      included_minutes_at_event: includedMinutes,
+      included_minutes: includedMinutes,
       billable_minutes: billableMinutes,
       call_started_at: callStartedAt,
       call_ended_at: callEndedAt,

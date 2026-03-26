@@ -36,11 +36,20 @@ async function createAndNotifyHandoff(args: {
 }) {
   const { supabase, clientId, handoff, fromNumber } = args;
 
+  const { data: clientRow } = await supabase
+    .from("clients")
+    .select("owner_user")
+    .eq("id", clientId)
+    .maybeSingle();
+
   const { data, error } = await supabase
     .from("handoffs")
     .insert({
       client_id: clientId,
+      user_id: clientRow?.owner_user ?? null,
       question: handoff.question ?? "",
+      intent: "handoff",
+      confidence: 0.95,
       customer_name: handoff.customerName ?? null,
       customer_phone: handoff.customerPhone ?? fromNumber ?? null,
       status: "open",
