@@ -15,7 +15,7 @@ function verifyTwilioSignature(req: NextRequest, params: Record<string, string>)
   const signature = req.headers.get("x-twilio-signature") ?? "";
   if (!signature) return false;
 
-  const base = getBaseUrl(req);
+  const base = new URL(req.url).origin;
 
   // Twilio signiert mit der exakten URL inkl. Querystring
   const url = `${base}${req.nextUrl.pathname}${req.nextUrl.search}`;
@@ -48,7 +48,7 @@ if (isProd && !process.env.TWILIO_AUTH_TOKEN) {
   const form = await req.formData();
   const body: Record<string, any> = {};
   for (const [k, v] of form.entries()) body[k] = String(v);
-  const base = getBaseUrl(req);
+  const base = new URL(req.url).origin;
   const calledNumber = body.To || body.Called || body.ToFormatted || "";
   const callSid = body.CallSid || "";
   const fromNumber = body.From || "";

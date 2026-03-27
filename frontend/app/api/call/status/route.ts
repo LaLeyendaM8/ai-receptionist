@@ -14,7 +14,7 @@ function verifyTwilioSignature(req: NextRequest, params: Record<string, string>)
   const signature = req.headers.get("x-twilio-signature") ?? "";
   if (!signature) return false;
 
-  const base = getBaseUrl(req);
+  const base = new URL(req.url).origin;
   const url = `${base}${req.nextUrl.pathname}${req.nextUrl.search}`;
 
   return validateRequest(TWILIO_AUTH_TOKEN, signature, url, params);

@@ -26,7 +26,7 @@ function verifyTwilioSignature(req: Request, params: Record<string, string>) {
   const signature = req.headers.get("x-twilio-signature") ?? "";
   if (!signature) return false;
 
-  const base = getBaseUrl(req);
+  const base = new URL(req.url).origin;
   const u = new URL(req.url);
   const url = `${base}${u.pathname}${u.search}`;
 
@@ -142,7 +142,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const base = getBaseUrl(req);
+  const base = new URL(req.url).origin;
   const supabase = createServiceClient();
 
   try {
