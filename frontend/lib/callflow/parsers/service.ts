@@ -26,6 +26,27 @@ function tokenize(text: string) {
     .filter(Boolean);
 }
 
+function singularizeToken(token: string) {
+  return token
+    .replace(/innen$/g, "in")
+    .replace(/e?n$/g, "")
+    .replace(/s$/g, "");
+}
+
+function tokensLooselyMatch(a: string, b: string) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  const sa = singularizeToken(a);
+  const sb = singularizeToken(b);
+
+  return (
+    sa === sb ||
+    sa.includes(sb) ||
+    sb.includes(sa)
+  );
+}
+
 function scoreService(text: string, service: ServiceCandidate) {
   const input = normalize(text);
   const serviceName = normalize(service.title);
@@ -39,7 +60,9 @@ function scoreService(text: string, service: ServiceCandidate) {
   const inputTokens = tokenize(input);
   const serviceTokens = tokenize(serviceName);
 
-  const matches = inputTokens.filter((token) => serviceTokens.includes(token));
+  const matches = inputTokens.filter((token) =>
+    serviceTokens.some((serviceToken) => tokensLooselyMatch(token, serviceToken))
+  );
   if (matches.length === 0) return 0;
 
   return matches.length / serviceTokens.length;

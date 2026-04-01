@@ -31,6 +31,27 @@ function tokenize(text: string) {
   return normalize(text).split(" ").filter(Boolean);
 }
 
+function singularizeToken(token: string) {
+  return token
+    .replace(/innen$/g, "in")
+    .replace(/e?n$/g, "")
+    .replace(/s$/g, "");
+}
+
+function tokensLooselyMatch(a: string, b: string) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  const sa = singularizeToken(a);
+  const sb = singularizeToken(b);
+
+  return (
+    sa === sb ||
+    sa.includes(sb) ||
+    sb.includes(sa)
+  );
+}
+
 function weekdayLabel(weekday: number) {
   const map: Record<number, string> = {
     0: "Sonntag",
@@ -78,7 +99,9 @@ function scoreService(text: string, service: FaqService) {
 
   const inputTokens = tokenize(input);
   const serviceTokens = tokenize(name);
-  const overlap = inputTokens.filter((t) => serviceTokens.includes(t)).length;
+  const overlap = inputTokens.filter((token) =>
+    serviceTokens.some((serviceToken) => tokensLooselyMatch(token, serviceToken))
+  ).length;
 
   if (!overlap) return 0;
 
