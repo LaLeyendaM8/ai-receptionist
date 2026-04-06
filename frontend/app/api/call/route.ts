@@ -36,9 +36,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const supabase = createServiceClient();
-  const isProd = process.env.NODE_ENV === "production";
 
-if (isProd && !process.env.TWILIO_AUTH_TOKEN) {
+if (process.env.NODE_ENV === "production" && !process.env.TWILIO_AUTH_TOKEN) {
   console.error("TWILIO_AUTH_TOKEN missing in production");
   return new Response("Server misconfigured", { status: 500 });
 }

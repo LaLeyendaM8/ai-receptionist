@@ -105,7 +105,21 @@ function scoreService(text: string, service: FaqService) {
 
   if (!overlap) return 0;
 
-  return overlap / serviceTokens.length;
+  const overlapScore = overlap / serviceTokens.length;
+
+  // Falls nur ein prägnantes Service-Token genannt wird (z. B. "Haarschnitt"
+  // bei Service-Titel "Herren Haarschnitt"), trotzdem zuverlässig treffen.
+  const hasStrongTokenHit = inputTokens.some(
+    (token) =>
+      token.length >= 6 &&
+      serviceTokens.some((serviceToken) => tokensLooselyMatch(token, serviceToken))
+  );
+
+  if (hasStrongTokenHit) {
+    return Math.max(overlapScore, 0.72);
+  }
+
+  return overlapScore;
 }
 
 function findBestService(text: string, services: FaqService[]) {
@@ -246,6 +260,15 @@ export function matchFaq(text: string, ctx: FaqContext): FaqMatchResult {
     };
   }
 
+  if (!bestService && looksLikePrice(text) && ctx.services.length > 0) {
+    return {
+      matched: true,
+      type: "service_price",
+      answer: "Für welche Leistung möchten Sie den Preis wissen? Zum Beispiel: Haarschnitt oder Balayage.",
+      confidence: 0.62,
+    };
+  }
+
   if (bestService && looksLikeDuration(text)) {
     const duration = bestService.service.duration_min;
     return {
@@ -256,6 +279,15 @@ export function matchFaq(text: string, ctx: FaqContext): FaqMatchResult {
           ? `${bestService.service.title} dauert ungefähr ${duration} Minuten.`
           : `Für ${bestService.service.title} ist aktuell keine Dauer hinterlegt.`,
       confidence: Math.min(0.98, bestService.score),
+    };
+  }
+
+  if (!bestService && looksLikeDuration(text) && ctx.services.length > 0) {
+    return {
+      matched: true,
+      type: "service_duration",
+      answer: "Für welche Leistung möchten Sie die Dauer wissen? Zum Beispiel: Haarschnitt oder Balayage.",
+      confidence: 0.62,
     };
   }
 
