@@ -65,7 +65,19 @@ function scoreService(text: string, service: ServiceCandidate) {
   );
   if (matches.length === 0) return 0;
 
-  return matches.length / serviceTokens.length;
+  const overlapScore = matches.length / serviceTokens.length;
+
+  const hasStrongTokenHit = inputTokens.some(
+    (token) =>
+      token.length >= 6 &&
+      serviceTokens.some((serviceToken) => tokensLooselyMatch(token, serviceToken))
+  );
+
+  if (hasStrongTokenHit) {
+    return Math.max(overlapScore, 0.72);
+  }
+
+  return overlapScore;
 }
 
 export function parseService(args: {
